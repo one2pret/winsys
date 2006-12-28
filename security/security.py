@@ -1,9 +1,9 @@
 import os, sys
+import fnmatch
+
 import win32security
-from win32security import *
-import win32con
+## from win32security import *
 import win32api
-from ntsecuritycon import *
 import pywintypes
 
 PyHANDLE = type (pywintypes.HANDLE ())
@@ -19,6 +19,59 @@ def _set (object, attribute, value=None):
 
 def mask_as_string (mask, length=32):
   return "".join ("01"[bool (mask & (2 << i))] for i in range (length)[::-1])
+
+class Symbols (object):
+  
+  class Symbol (object):
+    def __init__ (self, lookup, pattern="*"):
+      self._lookup = lookup
+      self.pattern = pattern
+    def __getitem__ (self, key):
+      try:
+        return self._lookup[str (key).lower ()]
+      except KeyError:
+        return self._lookup[self.pattern.replace ("*", str (key)).lower ()]
+    def __getattr__ (self, key):
+      return self[key]
+    def __repr__ (self):
+      return repr (self._lookup)
+    def __str__ (self):
+      return str (self._lookup)
+  
+  def __init__ (self):
+    self.symbols = {}
+    
+  def __repr__ (self):
+    return repr (self.symbols)
+    
+  def __str__ (self):
+    return str (self.symbols)
+  
+  def _update (self, items):
+    symbols = {}
+    for k, v in items:
+      symbols[str (k).lower ()] = v
+      symbols[str (v).lower ()] = k
+    return symbols
+  
+  def from_dict (self, name, dict, pattern="*"):
+    self.symbols[name] = self.Symbol (self._update (dict.items ()), pattern)
+    return self.symbols[name]
+  
+  def from_namespace (self, name, pattern="*", namespace=win32security):
+    return self.from_list (name, fnmatch.filter (dir (namespace), pattern), pattern, namespace)
+    
+  def from_list (self, name, keys, pattern="*", namespace=win32security):
+    return self.from_dict (name, dict ((key, getattr (namespace, key)) for key in keys), pattern)
+
+  def __getattr__ (self, key):
+    return self[key]
+    
+  def __getitem__ (self, key):
+    return self.symbols[key]
+    
+SYMBOLS = Symbols ()
+ACE_FLAGS = SYMBOLS.from_list ("ace_flags", ["CONTAINER_INHERIT_ACE", "INHERIT_ONLY_ACE", "INHERITED_ACE", "NO_PROPAGATE_INHERIT_ACE", "OBJECT_INHERIT_ACE"])
 
 def symbol (name, pattern ="%s", namespace=win32security, uppercase=True):
   """Convert a -- possibly lowercase -- string to the corresponding
