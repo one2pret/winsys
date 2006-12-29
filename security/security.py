@@ -2,7 +2,7 @@ import os, sys
 import fnmatch
 
 import win32security
-## from win32security import *
+from win32security import *
 import win32api
 import pywintypes
 
@@ -20,43 +20,47 @@ def _set (object, attribute, value=None):
 def mask_as_string (mask, length=32):
   return "".join ("01"[bool (mask & (2 << i))] for i in range (length)[::-1])
 
-class Symbols (object):
+class Constants (object):
   
-  class Symbol (object):
+  class Constant (object):
     def __init__ (self, lookup, pattern="*"):
       self._lookup = lookup
-      self.pattern = pattern
+      self._pattern = pattern
+      
+    def __contains__ (self, key):
+      return key in self._lookup
+    
     def __getitem__ (self, key):
       try:
         return self._lookup[str (key).lower ()]
       except KeyError:
-        return self._lookup[self.pattern.replace ("*", str (key)).lower ()]
+        return self._lookup[self._pattern.replace ("*", str (key)).lower ()]
+    
     def __getattr__ (self, key):
       return self[key]
+    
     def __repr__ (self):
       return repr (self._lookup)
+    
     def __str__ (self):
       return str (self._lookup)
   
   def __init__ (self):
-    self.symbols = {}
+    self.constants = {}
     
   def __repr__ (self):
-    return repr (self.symbols)
+    return repr (self.constants)
     
   def __str__ (self):
-    return str (self.symbols)
-  
-  def _update (self, items):
-    symbols = {}
-    for k, v in items:
-      symbols[str (k).lower ()] = v
-      symbols[str (v).lower ()] = k
-    return symbols
+    return str (self.constants)
   
   def from_dict (self, name, dict, pattern="*"):
-    self.symbols[name] = self.Symbol (self._update (dict.items ()), pattern)
-    return self.symbols[name]
+    constants = self.constants.get (name, {})
+    for k, v in dict.items ():
+      constants[str (k).lower ()] = v
+      constants[str (v).lower ()] = k
+    self.constants[name] = self.Constant (constants, pattern)
+    return self.constants[name]
   
   def from_namespace (self, name, pattern="*", namespace=win32security):
     return self.from_list (name, fnmatch.filter (dir (namespace), pattern), pattern, namespace)
@@ -68,10 +72,13 @@ class Symbols (object):
     return self[key]
     
   def __getitem__ (self, key):
-    return self.symbols[key]
+    return self.constants[key]
     
-SYMBOLS = Symbols ()
-ACE_FLAGS = SYMBOLS.from_list ("ace_flags", ["CONTAINER_INHERIT_ACE", "INHERIT_ONLY_ACE", "INHERITED_ACE", "NO_PROPAGATE_INHERIT_ACE", "OBJECT_INHERIT_ACE"])
+constants = Constants ()
+ACE_FLAGS = constants.from_list ("ace_flags", ["CONTAINER_INHERIT_ACE", "INHERIT_ONLY_ACE", "INHERITED_ACE", "NO_PROPAGATE_INHERIT_ACE", "OBJECT_INHERIT_ACE"])
+ACE_TYPES = constants.from_namespace ("ace_types", "*_ACE_TYPE")
+DACE_TYPES = constants.from_namespace ("dace_types", "ACCESS_*_ACE_TYPE")
+SACE_TYPES = constants.from_namespace ("sace_types", "SYSTEM_*_ACE_TYPE")
 
 def symbol (name, pattern ="%s", namespace=win32security, uppercase=True):
   """Convert a -- possibly lowercase -- string to the corresponding
@@ -342,19 +349,13 @@ class Account (_SecurityObject):
     sid, domain, type = win32security.LookupAccountName (system_name, account_name)
     return Account (sid, domain)
     
-ACE_TYPES = Partial (symbol, pattern="%s_ACE_TYPE")
+  def from_well_known (well_known, domain_name):
+    domain_sid = Account.from_name (domain_name).pyobject ()
+    return Account (win32security.CreateWellKnownSid (well_known, domain_sid))
+    
 class ACE (_SecurityObject):
 
-  TYPES = {
-    win32security.ACCESS_ALLOWED_ACE_TYPE : "Access Allowed",
-    win32security.ACCESS_DENIED_ACE_TYPE : "Access Denied",
-    win32security.SYSTEM_AUDIT_ACE_TYPE : "System Audit",
-    win32security.ACCESS_ALLOWED_OBJECT_ACE_TYPE : "Access Allowed",
-    win32security.ACCESS_DENIED_OBJECT_ACE_TYPE : "Access Denied",
-    win32security.SYSTEM_AUDIT_OBJECT_ACE_TYPE : "System Audit",
-  }
-
-  def __init__ (self, type, trustee, access, flags=set ()):
+  def __init__ (self, type, trustee, access, flags=set (), object_type=None, inherited_object_type=None):
     """Construct a new ACE
     
     @param type String or number representing one of the *_ACE_TYPE constants
@@ -377,6 +378,18 @@ class ACE (_SecurityObject):
   def pyobject (self):
     return self._ace
   
+  def from_ace (self, ace):
+    (type, flags) = ace[0]
+    if "object" in ACE_TYPES[type].lower ().split ("_"):
+      mask, object_type, inherited_object_type, sid = ace[1:]
+    else:
+      mask, sid = ace[1:]
+      object_type = inherited_object_type = None
+    if type in DACE_TYPES:
+      return DACE (type, Account (sid), mask, flags, object_type, inherited_object_type)
+    else:
+      return SACE (type, Account (sid), mask, flags, object_type, inherited_object_type)
+  
   def as_tuple (self):
     return self.type, self.account, self.mask
   
@@ -385,7 +398,7 @@ class ACE (_SecurityObject):
     return "%s %s %s" % (self.access, self.trustee, self.as_string (rights))
   
   def reset (self, type, trustee, access, flags):
-    self.type = ACE_TYPES (type)
+    self.type = ACE_TYPES[type]
     (type, flags) = ace[0]
     if type in [win32security.ACCESS_ALLOWED_ACE_TYPE, win32security.ACCESS_DENIED_ACE_TYPE, win32security.SYSTEM_AUDIT_ACE_TYPE]:
       mask, sid = ace[1:]
