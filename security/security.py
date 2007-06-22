@@ -180,7 +180,12 @@ class Privilege (_SecurityObject):
       else:
         raise
     
-    self.attributes = set (a for a in self.ATTRIBUTES if (attributes or 0) & symbol (a, "SE_PRIVILEGE_%s"))
+    self.attributes = set ()
+    if attributes:
+      for attribute in self.ATTRIBUTES:
+        name, value = symbol (attribute, "SE_PRIVILEGE_%s")
+        if value & attributes:
+          self.attributes.add (attribute)
     self._update ()
 
   def as_string (self):
@@ -229,7 +234,7 @@ Statistics: %(statistics)s
         raise
 
   def reset (self, hToken):
-    if not hToken:
+    if hToken:
       self.hToken = hToken
     else:
       flags = win32security.TOKEN_READ
@@ -240,7 +245,7 @@ Statistics: %(statistics)s
           self.hToken = win32security.OpenProcessToken (win32api.GetCurrentProcess (), flags)
         else:
           raise
-          
+
     self._update ()
     
   def _update (self):
@@ -262,7 +267,7 @@ Statistics: %(statistics)s
       ## FIXME self._info['impersonation_level'] = self.info ("ImpersonationLevel")
       self._info['session_id'] = self.info ("SessionId")
       self._info['statistics'] = self.info ("Statistics")
-      _SecurityObject.update (self)
+      _SecurityObject._update (self)
     
   def enable_privileges (self, privileges):
     privs_to_enable = []
@@ -349,6 +354,7 @@ class Account (_SecurityObject):
     sid, domain, type = win32security.LookupAccountName (system_name, account_name)
     return Account (sid, domain)
     
+  @staticmethod
   def from_well_known (well_known, domain_name):
     domain_sid = Account.from_name (domain_name).pyobject ()
     return Account (win32security.CreateWellKnownSid (well_known, domain_sid))
@@ -626,4 +632,4 @@ def adjust_privileges (privilege, enable=True):
   return win32security.AdjustTokenPrivileges (hToken, 0, new_privileges)
 
 if __name__ == '__main__':
-  adjust_privileges (SE_CHANGE_NOTIFY_NAME)
+  print Token ()

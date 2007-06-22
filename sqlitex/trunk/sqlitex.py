@@ -1,11 +1,9 @@
 try:
   import sqlite3 as sqlite
   from sqlite3 import *
-  print "sqlite3 found - probably Python 2.5"
 except ImportError:
   from pysqlite2 import dbapi2 as sqlite
   from pysqlite2.dbapi2 import *
-  print "sqlite3 not found - probably not Python 2.5"
 
 import decimal
 
