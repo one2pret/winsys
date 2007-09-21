@@ -47,58 +47,74 @@ class Frame (wx.Frame):
 
     directory_label = wx.StaticText (panel, label="Directory")
     self.directory = wx.TextCtrl (panel, value="")
-    directory_button = wx.Button (panel, size=(30, -1), label="...")
+    directory_button = wx.Button (panel, size=(24, 20), label="...")
+    
+    self.do_script_to = wx.CheckBox (panel)
+    script_to_label = wx.StaticText (panel, label="Script to")
+    self.script_to = wx.TextCtrl (panel, value="")
+    self.script_to_button = wx.Button (panel, size=(24, 20), label="...")
+    
     server_label = wx.StaticText (panel, label="Server")
     self.server = DelayedComboBox (releaselib.servers, panel)
     db_label = wx.StaticText (panel, label="Database")
     self.db = wx.ComboBox (panel)
+    
     self.checklist = wx.CheckListBox (panel)
     self.output = wx.TextCtrl (panel, style=wx.TE_MULTILINE)
     self.release_button = wx.Button (panel, label="Release")
     cancel_button = wx.Button (panel, id=wx.ID_CANCEL)
 
-    h1 = wx.BoxSizer (wx.HORIZONTAL)
-    h1.Add (directory_label, 0, wx.ALL, 5)
-    h1.Add (self.directory, 1, wx.EXPAND | wx.ALL, 5)
-    h1.Add (directory_button, 0, wx.ALL, 5)
-
-    db_sizer = wx.BoxSizer (wx.HORIZONTAL)
-    db_sizer.Add (server_label, 0, wx.ALL, 5)
-    db_sizer.Add (self.server, 1, wx.EXPAND | wx.ALL, 5)
-    db_sizer.Add (db_label, 0, wx.ALL, 5)
-    db_sizer.Add (self.db, 1, wx.EXPAND | wx.ALL, 5)
+    h_directory = wx.BoxSizer (wx.HORIZONTAL)
+    h_directory.Add (directory_label, 0, wx.ALL, 5)
+    h_directory.Add (self.directory, 1, wx.EXPAND | wx.ALL, 5)
+    h_directory.Add (directory_button, 0, wx.ALL, 5)
     
-    v1 = wx.BoxSizer (wx.VERTICAL)
-    v1.Add (self.checklist, 1, wx.EXPAND | wx.ALL, 5)
+    h_script_to = wx.BoxSizer (wx.HORIZONTAL)
+    h_script_to.Add (self.do_script_to, 0, wx.ALL, 5)
+    h_script_to.Add (script_to_label, 0, wx.ALL, 5)
+    h_script_to.Add (self.script_to, 1, wx.EXPAND | wx.ALL, 5)
+    h_script_to.Add (self.script_to_button, 0, wx.ALL, 5)
 
-    v2 = wx.BoxSizer (wx.VERTICAL)
-    v2.Add (self.output, 1, wx.EXPAND | wx.ALL)
+    h_database = wx.BoxSizer (wx.HORIZONTAL)
+    h_database.Add (server_label, 0, wx.ALL, 5)
+    h_database.Add (self.server, 1, wx.EXPAND | wx.ALL, 5)
+    h_database.Add (db_label, 0, wx.ALL, 5)
+    h_database.Add (self.db, 1, wx.EXPAND | wx.ALL, 5)
+    
+    v_checklist = wx.BoxSizer (wx.VERTICAL)
+    v_checklist.Add (self.checklist, 1, wx.EXPAND | wx.ALL, 3)
+
+    v_output = wx.BoxSizer (wx.VERTICAL)
+    v_output.Add (self.output, 1, wx.EXPAND | wx.ALL, 3)
 
     h2 = wx.BoxSizer (wx.HORIZONTAL)
-    h2.Add (v1, 4, wx.EXPAND | wx.ALL)
-    h2.Add (v2, 5, wx.EXPAND | wx.ALL)
+    h2.Add (v_checklist, 1, wx.EXPAND | wx.ALL)
+    h2.Add (v_output, 1, wx.EXPAND | wx.ALL)
 
-    h3 = wx.BoxSizer (wx.HORIZONTAL)
-    h3.Add (self.release_button, 0, wx.ALL, 5)
-    h3.Add (cancel_button, 0, wx.ALL,5)
-
+    h_buttons = wx.BoxSizer (wx.HORIZONTAL)
+    h_buttons.Add (cancel_button, 0, wx.ALL,5)
+    h_buttons.Add (self.release_button, 0, wx.ALL, 5)
+    
     v3 = wx.BoxSizer (wx.VERTICAL)
-    v3.Add (h1, 0, wx.EXPAND)
-    v3.Add (db_sizer, 0, wx.EXPAND)
+    v3.Add (h_directory, 0, wx.EXPAND)
+    v3.Add (h_script_to, 0, wx.EXPAND)
+    v3.Add (h_database, 0, wx.EXPAND)
     v3.Add (h2, 1, wx.EXPAND)
-    v3.Add (h3, 0)
+    v3.Add (h_buttons, 0, wx.ALIGN_RIGHT)
 
     panel.SetSizer (v3)
 
     self.Centre ()
     self.Show (True)
 
-    self.Bind (wx.EVT_BUTTON, self.OnDirectoryButton, id=directory_button.GetId ())
-    self.Bind (wx.EVT_BUTTON, self.OnRelease, id=self.release_button.GetId ())
+    self.Bind (wx.EVT_BUTTON, self.OnDirectoryButton, id=directory_button.Id)
+    self.Bind (wx.EVT_CHECKBOX, self.check_for_script_to, id=self.do_script_to.Id)
+    self.Bind (wx.EVT_BUTTON, self.OnScriptToButton, id=self.script_to_button.Id)
+    self.Bind (wx.EVT_BUTTON, self.OnRelease, id=self.release_button.Id)
     self.Bind (wx.EVT_BUTTON, self.OnCancel, id=wx.ID_CANCEL)
     
-    self.Bind (wx.EVT_LISTBOX_DCLICK, self.OnCheckListDClick, id=self.checklist.GetId ())
-    self.Bind (wx.EVT_CHECKLISTBOX, self.OnCheckListBox, id=self.checklist.GetId ())
+    self.Bind (wx.EVT_LISTBOX_DCLICK, self.OnCheckListDClick, id=self.checklist.Id)
+    self.Bind (wx.EVT_CHECKLISTBOX, self.OnCheckListBox, id=self.checklist.Id)
     self.server.Bind (wx.EVT_KILL_FOCUS, self.OnServer)
     self.server.Bind (wx.EVT_TEXT, self.OnServer)
     #~ self.server.Bind (wx.EVT_SIZE, self.OnServer)
@@ -129,6 +145,7 @@ class Frame (wx.Frame):
       self.checklist.Clear ()
 
     self.check_for_release ()
+    self.check_for_script_to ()
 
   def check_for_release (self):
     """Enable the [Release] button only if at least one
@@ -169,13 +186,30 @@ class Frame (wx.Frame):
     dlg = wx.FileDialog (
       self,
       "Choose a .release file",
-      os.path.dirname (self.directory.GetValue () or os.getcwd ()),
+      os.path.dirname (self.directory.Value or os.getcwd ()),
       wildcard="*.release",
       style=wx.FD_FILE_MUST_EXIST | wx.FD_OPEN
     )
     try:
       if dlg.ShowModal () == wx.ID_OK:
-        self.reset (dlg.GetPaths ()[0])
+        self.reset (dlg.Path)
+    finally:
+      dlg.Destroy ()
+
+  def check_for_script_to (self, event=None):
+    self.script_to.Enable (self.do_script_to.IsChecked ())
+    self.script_to_button.Enable (self.do_script_to.IsChecked ())
+  
+  def OnScriptToButton (self, event):
+    dlg = wx.DirDialog (
+      self,
+      "Choose a folder to script to",
+      os.path.dirname (self.script_to.Value or os.getcwd ()),
+      style=wx.DD_DIR_MUST_EXIST | wx.DD_DEFAULT_STYLE
+    )
+    try:
+      if dlg.ShowModal () == wx.ID_OK:
+        self.script_to.Value = dlg.Path
     finally:
       dlg.Destroy ()
 
@@ -204,5 +238,5 @@ if __name__ == '__main__':
     release_filename = sys.argv[1]
   else:
     release_filename = ""
-  app = ReleaseApp (release_filename, filename="c:/temp/wx.log")
+  app = ReleaseApp (release_filename, filename="wx.log")
   app.MainLoop ()
