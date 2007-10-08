@@ -148,8 +148,8 @@ def write_module (ofilename, imports, aliases, structures, interfaces):
         yield "COMMETHOD ("
         yield '  [], %(restype)s, "%(name)s",' % locals ()
         for param in write_params (params):
-          yield '  %(param)s,' % locals ()
-        yield ")"
+          yield '  (%(param)s),' % locals ()
+        yield "),"
     
     method_defs = "\n    ".join (write_method_defs (method_defs))
     yield """
