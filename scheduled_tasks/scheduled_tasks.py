@@ -5,6 +5,9 @@ import time
 import pythoncom
 from win32com.taskscheduler import taskscheduler
 
+def _set (obj, key, value):
+  obj.__dict__[key] = value
+
 class Constants (object):
   def __init__ (self):
     pass
@@ -34,8 +37,52 @@ def flags_to_words (number, prefix):
       words.add (flag_name[len (prefix):].lower ())
   return words
 
-class Task (object):
+class Trigger (object):
   
+  def __init__ (self, trigger, task=None):
+    _set (self, "trigger", trigger)
+    _set (self, "task", task)
+    
+  def __getattr__ (self, attr):
+    trigger = self.trigger.GetTrigger ()
+    return getattr (trigger, attr)
+    
+  def __setattr__ (self, attr, value):
+    trigger = self.trigger.GetTrigger ()
+    setattr (trigger, attr, value)
+    
+  def __str__ (self):
+    return self.trigger.GetTriggerString ()
+    
+  def save (self):
+    self.trigger.SetTrigger (self.
+    trigger = self.trigger.GetTrigger ()
+    trigger.QueryInterface (pythoncom.IID_IPersistFile).Save (None, 1)
+    
+class Triggers (object):
+  
+  def __init__ (self, task):
+    self.task = task
+    
+  def __len__ (self):
+    return self.task.GetTriggerCount ()
+    
+  def __getitem__ (self, item):
+    return self.get_trigger (item)
+
+  def __iter__ (self):
+    for n_trigger in range (self.task.GetTriggerCount ()):
+      yield self.get_trigger (n_trigger)
+      
+  def get_trigger (self, n_trigger):
+    return Trigger (self.task.GetTrigger (n_trigger), self)
+    
+  def add (self):
+    n_trigger, trigger = self.task.CreateTrigger ()
+    return Trigger (trigger)
+
+class Task (object):
+
   def __init__ (self, name, task, **kwargs):
     self.name = name
     self.task = task
@@ -138,6 +185,10 @@ class Task (object):
   def get_exit_code (self):
     return self.task.GetExitCode ()
   exit_code = property (get_exit_code)
+  
+  def get_triggers (self):
+    return Triggers (self)
+  triggers = property (get_triggers)
   
   def __getattr__ (self, attr):
     return getattr (self.task, attr)
