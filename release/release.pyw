@@ -45,7 +45,7 @@ class Frame (wx.Frame):
     wx.Frame.__init__ (self, parent, size=(600, 400))
     panel = wx.Panel (self)
 
-    directory_label = wx.StaticText (panel, label="Directory")
+    directory_label = wx.StaticText (panel, label="Release spec")
     self.directory = wx.TextCtrl (panel, value="")
     directory_button = wx.Button (panel, size=(24, 20), label="...")
     
