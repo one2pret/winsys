@@ -1,5 +1,7 @@
 import os, sys
 import datetime
+import operator
+import re
 import time
 
 import pythoncom
@@ -28,6 +30,14 @@ def flag_to_word (number, prefix):
   for name in (k for k in dir (taskscheduler) if k.startswith (prefix)):
     if getattr (taskscheduler, name) == number:
       return name[len (prefix):].lower ()
+      
+def word_to_flag (word, prefix):
+  if word is None:
+    return None
+  elif isinstance (word, int):
+    return word
+  else:
+    return getattr (taskscheduler, prefix + word.upper ())
 
 def flags_to_words (number, prefix):
   words = set ()
@@ -37,11 +47,193 @@ def flags_to_words (number, prefix):
       words.add (flag_name[len (prefix):].lower ())
   return words
 
-class Trigger (object):
+def words_to_flags (flags_as_words, prefix):
+  flags = 0
+  for word in flags_as_words:
+    flags |= getattr (taskscheduler, prefix + word.upper ())
+  return flags
   
-  def __init__ (self, trigger, task=None):
-    _set (self, "trigger", trigger)
-    _set (self, "task", task)
+def timedelta_to_days (timedelta):
+  if timedelta is None:
+    return None
+  return timedelta.days
+  
+def string_to_timedelta (string):
+  """Match a time interval string of the form <wks>w <days>d <hrs>h <mins>'
+  and convert to a timedelta.
+  """
+  if string is None:
+    return None
+  else:
+    string = str (string).strip ()
+
+  match = re.match (r"(?:(\d+)w)?\W+(?:(\d+)d)?\W*(?:(\d+)h)?\W*(?:(\d+)')?", string)
+  if not match:
+    raise RuntimeError, "Interval string must be [<wks>w] [<days>d] [<hours>h] [<mins>']"
+  else:
+    w, d, h, m = [int (i or 0) for i in match.groups ()]
+    print "string_to_minutes: %dd %dh %d'" % (d, h, m)
+    return datetime.timedelta (weeks=w, days=d, hours=h, minutes=m)
+
+def timedelta_to_minutes (timedelta):
+  if timedelta is None:
+    return None
+  return (timedelta.days * 24 * 60) + (timedelta.seconds / 60)
+  
+def interval_as_minutes (interval):  
+  if interval is None:
+    return None
+  
+  if isinstance (interval, int):
+    return interval
+  elif isinstance (interval, datetime.timedelta):
+    return timedelta_to_minutes (interval)
+  else:
+    return timedelta_to_minutes (string_to_timedelta (interval))
+  
+def interval_as_days (interval):
+  if interval is None:
+    return None
+  
+  if isinstance (interval, int):
+    return interval
+  elif isinstance (interval, datetime.timedelta):
+    return interval.days
+  else:
+    return string_to_timedelta (interval).days
+
+def interval_as_weeks (interval):
+  if interval is None:
+    return None
+  
+  if isinstance (interval, int):
+    return interval
+  elif isinstance (interval, datetime.timedelta):
+    return interval.days / 7
+  else:
+    return string_to_timedelta (interval).days / 7
+
+def enum_as_number (enum):
+  if enum is None:
+    return None
+  
+  if isinstance (enum, int):
+    return enum
+  else:
+    return words_to_flags (enum, "TASK_")
+
+def days_as_bits (days):
+  if days is None:
+    return None
+    
+  if isinstance (days, int):
+    return days
+  else:
+    return reduce (operator.ior, (2**(day-1) for bit in days))
+
+class _ScheduleDetails (object):
+  
+  def __init__ (
+    self,
+    schedule_type,
+    start_at, 
+    end_at=None, 
+    repeat_every=None, 
+    repeat_until=None,
+    kill_at_end=False,
+    is_disabled=False,
+    days_interval=None,
+    weeks_interval=None,
+    days_of_the_week=None,
+    month_date=None,
+    months=None,
+    n_week=None,
+    month_days=None
+  ):
+    self.schedule_type = schedule_type
+    self.start_at = start_at
+    self.end_at = end_at
+    self.repeat_every = interval_as_minutes (repeat_every)
+    if isinstance (repeat_until, datetime.datetime):
+      repeat_until = repeat_until - self.start_datetime
+    self.repeat_until = interval_as_minutes (repeat_until)
+    self.kill_at_end  = kill_at_end
+    self.is_disabled = is_disabled
+    self.days_interval = interval_as_days (days_interval)
+    self.weeks_interval = interval_as_weeks (weeks_interval)
+    self.days_of_the_week = enum_as_number (days_of_the_week)
+    self.month_date = month_date
+    self.months = enum_as_number (months)
+    self.n_week = word_to_flag (n_week, "TASK_")
+    self.month_days = days_as_bits (month_days)
+    
+def once_schedule (
+  start_at, 
+  end_at=None, 
+  repeat_every=None, 
+  repeat_until=None,
+  kill_at_end=False,
+  is_disabled=False
+):
+  return _ScheduleDetails (
+    0,
+    start_at,
+    end_at,
+    repeat_every,
+    repeat_until,
+    kill_at_end,
+    is_disabled
+  )
+  
+def daily_schedule (
+  start_at, 
+  every_n_days,
+  end_at=None, 
+  repeat_every=None, 
+  repeat_until=None,
+  kill_at_end=False,
+  is_disabled=False
+):
+  return _ScheduleDetails (
+    1,
+    start_at,
+    end_at,
+    repeat_every,
+    repeat_until,
+    kill_at_end,
+    is_disabled,
+    every_n_days
+  )
+
+def weekly_schedule (
+  start_at, 
+  every_n_weeks,
+  weekdays,
+  end_at=None, 
+  repeat_every=None, 
+  repeat_until=None,
+  kill_at_end=False,
+  is_disabled=False
+):
+  return _ScheduleDetails (
+    2,
+    start_at,
+    end_at,
+    repeat_every,
+    repeat_until,
+    kill_at_end,
+    is_disabled,
+    every_n_weeks,
+    weekdays
+  )
+
+class Schedule (object):
+  
+  def __init__ (
+    self, 
+    schedule
+  ):
+    self.schedule = schedule
     
   def __getattr__ (self, attr):
     trigger = self.trigger.GetTrigger ()
@@ -54,12 +246,7 @@ class Trigger (object):
   def __str__ (self):
     return self.trigger.GetTriggerString ()
     
-  def save (self):
-    self.trigger.SetTrigger (self.
-    trigger = self.trigger.GetTrigger ()
-    trigger.QueryInterface (pythoncom.IID_IPersistFile).Save (None, 1)
-    
-class Triggers (object):
+class Schedules (object):
   
   def __init__ (self, task):
     self.task = task
@@ -67,28 +254,34 @@ class Triggers (object):
   def __len__ (self):
     return self.task.GetTriggerCount ()
     
-  def __getitem__ (self, item):
-    return self.get_trigger (item)
-
+  def __getitem__ (self, index):
+    return self.get_trigger (index)
+    
   def __iter__ (self):
     for n_trigger in range (self.task.GetTriggerCount ()):
-      yield self.get_trigger (n_trigger)
-      
-  def get_trigger (self, n_trigger):
-    return Trigger (self.task.GetTrigger (n_trigger), self)
+      yield self.get_trigger (1 + n_trigger)
+
+  def get_schedule (self, n_trigger):
+    return Schedule (self.task.GetTrigger (n_trigger), self)
     
-  def add (self):
+  def add (self, schedule):
     n_trigger, trigger = self.task.CreateTrigger ()
-    return Trigger (trigger)
+    schedule = Schedule (schedule)
+    trigger.SetTrigger (schedule)
+    return self.get_schedule (n_trigger)
 
 class Task (object):
 
   def __init__ (self, name, task, **kwargs):
     self.name = name
     self.task = task
+    self.schedules = Schedules (self)
     for k, v in kwargs.items ():
       setattr (self, k, v)
 
+  def add_schedule (self, schedule):
+    return self.schedules.add (schedule)
+  
   def get_application_name (self):
     return self.task.GetApplicationName ()
   def set_application_name (self, application_name):
@@ -112,22 +305,14 @@ class Task (object):
   def set_priority (self, priority):
     self.task.SetPriority (priority)
   priority = property (get_priority, set_priority)
-  
-  @staticmethod
-  def words_to_flags (flags_as_words):
-    PREFIX = "TASK_FLAG_"
-    flags = 0
-    for word in flags_as_words:
-      flags |= getattr (taskscheduler, PREFIX + word.upper ())
-    return flags
-  
+
   def get_task_flags (self):
     return flags_to_words (self.task.GetTaskFlags (), prefix="TASK_FLAG_")
   def set_task_flags (self, task_flags):
     try:
       flags = int (task_flags)
     except (ValueError, TypeError):
-      flags = self.words_to_flags (task_flags)
+      flags = self.words_to_flags (task_flags, "TASK_FLAG_")
     self.task.SetTaskFlags (flags)
   task_flags = property (get_task_flags, set_task_flags)
   
@@ -186,10 +371,6 @@ class Task (object):
     return self.task.GetExitCode ()
   exit_code = property (get_exit_code)
   
-  def get_triggers (self):
-    return Triggers (self)
-  triggers = property (get_triggers)
-  
   def __getattr__ (self, attr):
     return getattr (self.task, attr)
   
@@ -209,6 +390,8 @@ class Tasks (object):
       taskscheduler.IID_ITaskScheduler
     )
     if computer:
+      if not computer.startswith ("\\\\"):
+        computer = "\\\\" + computer
       self.tasks.SetTargetComputer (computer)
     
   def __iter__ (self):
