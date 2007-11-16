@@ -12,10 +12,14 @@ cdef extern from "Python.h":
     void Py_INCREF(object o)
     void Py_DECREF(object o)
 
-cdef public object wrapPtr (void *ptr):
+cdef extern from "string.h":
+  void *memcpy (void *dest, void *src, int n)
+  void *memset (void *s, int c, int n)
+
+cdef public object c2py (void *ptr):
   return PyCObject_FromVoidPtr (ptr, NULL)
 
-cdef void *unwrapPtr (object obj):
+cdef void *py2c (object obj):
   return PyCObject_AsVoidPtr (obj)
 
 cdef extern from "ffmpeg/avutil.h":
@@ -39,8 +43,6 @@ cdef extern from "ffmpeg/avcodec.h":
 
 cdef extern from "ffmpeg/avformat.h":
 
-  void av_register_all ()
-  
   struct AVCodec:
     char *name
     CodecType type
@@ -99,6 +101,7 @@ cdef extern from "ffmpeg/avformat.h":
   struct AVFormatParameters:
     pass    
 
+  void av_register_all ()
   int av_open_input_file (
     AVFormatContext **ic_ptr, 
     char *filename,
@@ -106,7 +109,9 @@ cdef extern from "ffmpeg/avformat.h":
     int buf_size,
     AVFormatParameters *ap
   )
-
+  int av_find_stream_info (AVFormatContext *ic)
+  void av_close_input_file (AVFormatContext *ic)
+  
 cdef rational_to_tuple (AVRational rational):
   return (rational.num, rational.den)
 
@@ -118,7 +123,7 @@ cdef class Codec:
   cdef AVCodec *codec
   
   def __init__ (self, object codec):
-    self.codec = <AVCodec *>unwrapPtr (codec)
+    self.codec = <AVCodec *>py2c (codec)
     
   property name:
     def __get__ (self):
@@ -138,7 +143,7 @@ cdef class CodecContext:
   cdef AVCodecContext *codec_context
   
   def __init__ (self, object codec_context):
-    self.codec_context = <AVCodecContext *>unwrapPtr (codec_context)
+    self.codec_context = <AVCodecContext *>py2c (codec_context)
     
   property bit_rate:
     def __get__ (self):
@@ -169,7 +174,7 @@ cdef class CodecContext:
       if self.codec_context.codec is NULL:
         return None
       else:
-        return Codec (wrapPtr (self.codec_context.codec))
+        return Codec (c2py (self.codec_context.codec))
   property codec_type:
     def __get__ (self):
       return self.codec_context.codec_type
@@ -197,7 +202,7 @@ cdef class Stream:
   cdef AVStream *stream
   
   def __init__ (self, object stream):
-    self.stream = <AVStream *>unwrapPtr (stream)
+    self.stream = <AVStream *>py2c (stream)
     
   property frame_rate:
     def __get__ (self):
@@ -208,18 +213,19 @@ cdef class Stream:
       
   property codec_context:
     def __get__ (self):
-      return CodecContext (wrapPtr (self.stream.codec))
-  
+      return CodecContext (c2py (self.stream.codec))
+
 cdef class FormatContext:
 
+  cdef readonly char filename[256]
   cdef AVFormatContext *format_context
-  cdef int n_stream
   
   def __init__ (self, char *filename):
-    result = av_open_input_file (&self.format_context, filename, NULL, 0, NULL)
-    if result != 0:
-      raise x_pydump
-    self.n_stream = -1
+    memcpy (self.filename, filename, 255)
+    if av_open_input_file (&self.format_context, filename, NULL, 0, NULL) != 0:
+      raise x_pydump, "Unable to open %s" % filename
+    if av_find_stream_info (self.format_context) < 0:
+      raise x_pydump, "No streams found in %s" % filename
       
   property n_streams:
     def __get__ (self):
@@ -229,9 +235,13 @@ cdef class FormatContext:
     if n_stream > self.format_context.nb_streams - 1:
       raise IndexError
     else:
-      return Stream (wrapPtr (self.format_context.streams[n_stream]))
+      return Stream (c2py (self.format_context.streams[n_stream]))
+      
+  def __dealloc__ (self):
+    av_close_input_file (self.format_context)
 
 def open (char *filename):
   return FormatContext (filename)
 
-av_register_all ()
+def init ():
+  av_register_all ()
