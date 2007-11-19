@@ -49,112 +49,97 @@ void get_codec_name (
   strncpy (buf, codec_name, buf_size);
 }
 
-typedef struct _VideoInfo {
+typedef struct _Info {
+  char codec_type[10];
   char codec_name[256];
+  int duration;
+  int sub_id;
   int width;
   int height;
-  int display_aspect_x;
-  int display_aspect_y;
   int pixel_aspect_x;
   int pixel_aspect_y;
-  int bitrate;
-  float fps;
-} VideoInfo;
-
-typedef struct _AudioInfo {
-  char codec_name[256];
+  int bit_rate;
+  int frame_rate_num;
+  int frame_rate_den;
+  int time_base_num;
+  int time_base_den;
+  int sample_rate;  
+  int sample_bits;
   int n_channels;
-  int sample_rate;
-  int bitrate;
-} AudioInfo;
+} Info;
 
-void get_video_info (
-  VideoInfo *video_info,
+void get_info (
+  const char *codec_type,
+  Info *info,
   AVStream *stream
 )
 {
 AVCodecContext *enc = stream->codec;
 
-  if (enc->width) {
-    video_info->width = enc->width;
-    video_info->height = enc->height;
-
-    AVRational display_aspect_ratio;
-    av_reduce(
-      &display_aspect_ratio.num,
-      &display_aspect_ratio.den,
-      enc->width*enc->sample_aspect_ratio.num,
-      enc->height*enc->sample_aspect_ratio.den,
-      1024*1024
-    );
-    video_info->pixel_aspect_x = enc->sample_aspect_ratio.num;
-    video_info->pixel_aspect_y = enc->sample_aspect_ratio.den;
-    video_info->display_aspect_x = display_aspect_ratio.num;
-    video_info->display_aspect_y = display_aspect_ratio.den;
+  strncpy (info->codec_type, codec_type, 10);
+  info->sub_id = enc->sub_id;
+  info->width = enc->width;
+  info->height = enc->height;
+  info->pixel_aspect_x = enc->sample_aspect_ratio.num;
+  info->pixel_aspect_y = enc->sample_aspect_ratio.den;
+  info->bit_rate = enc->bit_rate;
+  info->frame_rate_num = stream->r_frame_rate.num;
+  info->frame_rate_den = stream->r_frame_rate.den;
+  info->time_base_num = stream->time_base.num;
+  info->time_base_den = stream->time_base.den;
+  info->sample_rate = enc->sample_rate;
+  info->duration = stream->duration;
+  info->n_channels = enc->channels;
+  info->sample_rate = enc->sample_rate;
+  switch (enc->sample_fmt)
+  {
+      case SAMPLE_FMT_U8:
+          info->sample_bits = 8;
+          break;
+      case SAMPLE_FMT_S16:
+          info->sample_bits = 16;
+          break;
+      case SAMPLE_FMT_S24:
+          info->sample_bits = 24;
+          break;
+      case SAMPLE_FMT_S32:
+          info->sample_bits = 32;
+          break;
+      case SAMPLE_FMT_FLT:
+          info->sample_bits = 32;
+          break;
   }
-  else {
-    video_info->width = 0;
-    video_info->height = 0;
-    video_info->pixel_aspect_x = 0;
-    video_info->pixel_aspect_y = 0;
-    video_info->display_aspect_x = 0;
-    video_info->display_aspect_y = 0;
+  switch (enc->codec_id)
+  {
+      case CODEC_ID_PCM_S32LE:
+      case CODEC_ID_PCM_S32BE:
+      case CODEC_ID_PCM_U32LE:
+      case CODEC_ID_PCM_U32BE:
+      case CODEC_ID_PCM_S24LE:
+      case CODEC_ID_PCM_S24BE:
+      case CODEC_ID_PCM_U24LE:
+      case CODEC_ID_PCM_U24BE:
+      case CODEC_ID_PCM_S24DAUD:
+      case CODEC_ID_PCM_S16LE:
+      case CODEC_ID_PCM_S16BE:
+      case CODEC_ID_PCM_U16LE:
+      case CODEC_ID_PCM_U16BE:
+      case CODEC_ID_PCM_S8:
+      case CODEC_ID_PCM_U8:
+      case CODEC_ID_PCM_ALAW:
+      case CODEC_ID_PCM_MULAW:
+          info->bit_rate = enc->sample_rate * 
+              enc->channels * info->sample_bits;
+          break;
+      default:
+          info->bit_rate = enc->bit_rate;
+          break;
   }
-
-  video_info->bitrate = enc->bit_rate;
-
-  if (stream->r_frame_rate.den && stream->r_frame_rate.num)
-    video_info->fps = av_q2d (stream->r_frame_rate);
-  else
-    video_info->fps = 1 / av_q2d (stream->codec->time_base);
-}
-
-void get_audio_info (
-  AudioInfo *audio_info,
-  AVStream *stream
-)
-{
-AVCodecContext *enc = stream->codec;
-  audio_info->n_channels = enc->channels;
-  audio_info->sample_rate = enc->sample_rate;
-  switch(enc->codec_id) {
-    case CODEC_ID_PCM_S32LE:
-    case CODEC_ID_PCM_S32BE:
-    case CODEC_ID_PCM_U32LE:
-    case CODEC_ID_PCM_U32BE:
-      audio_info->bitrate = enc->sample_rate * enc->channels * 32;
-      break;
-    case CODEC_ID_PCM_S24LE:
-    case CODEC_ID_PCM_S24BE:
-    case CODEC_ID_PCM_U24LE:
-    case CODEC_ID_PCM_U24BE:
-    case CODEC_ID_PCM_S24DAUD:
-      audio_info->bitrate = enc->sample_rate * enc->channels * 24;
-      break;
-    case CODEC_ID_PCM_S16LE:
-    case CODEC_ID_PCM_S16BE:
-    case CODEC_ID_PCM_U16LE:
-    case CODEC_ID_PCM_U16BE:
-      audio_info->bitrate = enc->sample_rate * enc->channels * 16;
-      break;
-    case CODEC_ID_PCM_S8:
-    case CODEC_ID_PCM_U8:
-    case CODEC_ID_PCM_ALAW:
-    case CODEC_ID_PCM_MULAW:
-      audio_info->bitrate = enc->sample_rate * enc->channels * 8;
-      break;
-    default:
-      audio_info->bitrate = enc->bit_rate;
-      break;
-  }
-
 }
 
 int main (int argc, char *argv[]) {
   AVFormatContext *pFormatCtx;
   int             i, videoStream, audioStream;
-  AVCodecContext  *pCodecCtx;
-  AVCodec         *pCodec;
 
   if(argc < 2) {
     printf("Please provide a movie file\n");
@@ -175,31 +160,47 @@ int main (int argc, char *argv[]) {
     AVCodecContext *codec = pFormatCtx->streams[i]->codec;
     int codec_type = codec->codec_type;
 
-    fprintf (stderr, "\n\n");
-
     if (codec_type == CODEC_TYPE_VIDEO) {
-      VideoInfo video_info;
-      fprintf (stderr, "VIDEO\n");
+      Info video_info;
       get_codec_name (video_info.codec_name, sizeof (video_info.codec_name), codec);
-      get_video_info (&video_info, pFormatCtx->streams[i]);
-
-      fprintf (stderr, "CODEC: %s\n", video_info.codec_name);
-      fprintf (stderr, "WxH: %dx%d\n", video_info.width, video_info.height);
-      fprintf (stderr, "PAR: [%d:%d]\n", video_info.pixel_aspect_x, video_info.pixel_aspect_y);
-      fprintf (stderr, "DAR: [%d:%d]\n", video_info.display_aspect_x, video_info.display_aspect_y);
-      fprintf (stderr, "Bit rate: %d\n", video_info.bitrate);
-      fprintf (stderr, "fps: %3.2f\n", video_info.fps);
+      get_info ("VIDEO", &video_info, pFormatCtx->streams[i]);
+      
+      fprintf (stdout, "VIDEO_CODEC: %s\n", video_info.codec_name);
+      fprintf (stdout, "VIDEO_DURATION: %d\n", video_info.duration);
+      fprintf (stdout, "VIDEO_SUBID: %d\n", video_info.sub_id);
+      fprintf (stdout, "VIDEO_WIDTH: %d\n", video_info.width);
+      fprintf (stdout, "VIDEO_HEIGHT: %d\n", video_info.height);
+      fprintf (stdout, "VIDEO_PARX: %d\n", video_info.pixel_aspect_x);
+      fprintf (stdout, "VIDEO_PARY: %d\n", video_info.pixel_aspect_y);
+      fprintf (stdout, "VIDEO_BIT_RATE: %d\n", video_info.bit_rate);
+      fprintf (stdout, "VIDEO_FRAME_RATE_NUM: %d\n", video_info.frame_rate_num);
+      fprintf (stdout, "VIDEO_FRAME_RATE_DEN: %d\n", video_info.frame_rate_den);
+      fprintf (stdout, "VIDEO_TIME_BASE_NUM: %d\n", video_info.time_base_num);
+      fprintf (stdout, "VIDEO_TIME_BASE_DEN: %d\n", video_info.time_base_den);
+      fprintf (stdout, "VIDEO_SAMPLE_RATE: %d\n", video_info.sample_rate);
+      fprintf (stdout, "VIDEO_SAMPLE_BITS: %d\n", video_info.sample_bits);
+      fprintf (stdout, "VIDEO_CHANNELS: %d\n", video_info.n_channels);
     }
     if (codec_type == CODEC_TYPE_AUDIO) {
-      AudioInfo audio_info;
-      fprintf (stderr, "AUDIO\n");
+      Info audio_info;
       get_codec_name (audio_info.codec_name, sizeof (audio_info.codec_name), codec);
-      get_audio_info (&audio_info, pFormatCtx->streams[i]);
-
-      fprintf (stderr, "CODEC: %s\n", audio_info.codec_name);
-      fprintf (stderr, "n_channels: %d\n", audio_info.n_channels);
-      fprintf (stderr, "sample rate: %d\n", audio_info.sample_rate);
-      fprintf (stderr, "bitrate: %d\n", audio_info.bitrate);
+      get_info ("AUDIO", &audio_info, pFormatCtx->streams[i]);
+    
+      fprintf (stdout, "AUDIO_CODEC: %s\n", audio_info.codec_name);
+      fprintf (stdout, "AUDIO_DURATION: %d\n", audio_info.duration);
+      fprintf (stdout, "AUDIO_SUBID: %d\n", audio_info.sub_id);
+      fprintf (stdout, "AUDIO_WIDTH: %d\n", audio_info.width);
+      fprintf (stdout, "AUDIO_HEIGHT: %d\n", audio_info.height);
+      fprintf (stdout, "AUDIO_PARX: %d\n", audio_info.pixel_aspect_x);
+      fprintf (stdout, "AUDIO_PARY: %d\n", audio_info.pixel_aspect_y);
+      fprintf (stdout, "AUDIO_BIT_RATE: %d\n", audio_info.bit_rate);
+      fprintf (stdout, "AUDIO_FRAME_RATE_NUM: %d\n", audio_info.frame_rate_num);
+      fprintf (stdout, "AUDIO_FRAME_RATE_DEN: %d\n", audio_info.frame_rate_den);
+      fprintf (stdout, "AUDIO_TIME_BASE_NUM: %d\n", audio_info.time_base_num);
+      fprintf (stdout, "AUDIO_TIME_BASE_DEN: %d\n", audio_info.time_base_den);
+      fprintf (stdout, "AUDIO_SAMPLE_RATE: %d\n", audio_info.sample_rate);
+      fprintf (stdout, "AUDIO_SAMPLE_BITS: %d\n", audio_info.sample_bits);
+      fprintf (stdout, "AUDIO_CHANNELS: %d\n", audio_info.n_channels);
     }
   }
 
