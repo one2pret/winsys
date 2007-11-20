@@ -23,8 +23,6 @@ def dump_mediafile (mediapath):
       print "No Codec"
   
 if __name__ == '__main__':
-  ffmpeg.init ()
-  
   if len (sys.argv) > 1:
     filepath = path (sys.argv[1])
   else:

@@ -41,8 +41,6 @@ cdef extern from "ffmpeg/avcodec.h":
   enum CodecID:
     pass
 
-cdef extern from "ffmpeg/avformat.h":
-
   struct AVCodec:
     char *name
     CodecType type
@@ -67,6 +65,11 @@ cdef extern from "ffmpeg/avformat.h":
     AVRational sample_aspect_ratio
     unsigned int stream_codec_tag
     float crf
+
+  AVCodec *avcodec_find_decoder (CodecID id)
+  int avcodec_open (AVCodecContext *avctx, AVCodec *codec)
+
+cdef extern from "ffmpeg/avformat.h":
 
   struct AVStream:
     int index
@@ -171,10 +174,19 @@ cdef class CodecContext:
       return self.codec_context.codec_name
   property codec:
     def __get__ (self):
-      if self.codec_context.codec is NULL:
+      cdef AVCodec *pcodec
+      ##if self.codec_context.codec is NULL:
+      ##return None
+      ##else:
+      ##  return Codec (c2py (self.codec_context.codec))
+      pcodec = avcodec_find_decoder (self.codec_context.codec_id)
+      if pcodec == NULL:
         return None
       else:
-        return Codec (c2py (self.codec_context.codec))
+        if avcodec_open (self.codec_context, pcodec) < 0:
+          raise x_pydump, "Can't open codec"
+        else:
+          return Codec (c2py (pcodec))
   property codec_type:
     def __get__ (self):
       return self.codec_context.codec_type
@@ -219,13 +231,24 @@ cdef class FormatContext:
 
   cdef readonly char filename[256]
   cdef AVFormatContext *format_context
+  cdef int is_opened
   
   def __init__ (self, char *filename):
+    self.is_opened = 0
     memcpy (self.filename, filename, 255)
     if av_open_input_file (&self.format_context, filename, NULL, 0, NULL) != 0:
+      self.is_opened = 0
       raise x_pydump, "Unable to open %s" % filename
-    if av_find_stream_info (self.format_context) < 0:
+    else:
+      self.is_opened = 1
+      print "Opened", filename
+    
+    cdef int n_streams 
+    n_streams = av_find_stream_info (self.format_context)
+    if n_streams < 0:
       raise x_pydump, "No streams found in %s" % filename
+    else:
+      print "Found %d streams" % n_streams
       
   property n_streams:
     def __get__ (self):
@@ -238,10 +261,14 @@ cdef class FormatContext:
       return Stream (c2py (self.format_context.streams[n_stream]))
       
   def __dealloc__ (self):
-    av_close_input_file (self.format_context)
+    if self.is_opened:
+      av_close_input_file (self.format_context)
 
 def open (char *filename):
   return FormatContext (filename)
 
-def init ():
-  av_register_all ()
+def load (char *filename):
+  cdef AVFormatContext *format_context
+  print av_open_input_file (&format_context, filename, NULL, 0, NULL)
+
+av_register_all ()
