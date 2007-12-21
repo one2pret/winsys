@@ -5,6 +5,7 @@ import glob
 import re
 
 import pyodbc
+import pysvn
 import sql
 import sqldmo
 
@@ -63,20 +64,35 @@ def release (db, sql_text):
       return
 
 def find_release_directory (start_from="."):
-  directory = os.path.abspath (start_from)
-  parts = directory.split (os.sep)
+  svn = pysvn.Client ()
   try:
-    n_releases = parts.index ("releases")
-    releases = os.sep.join (parts[:n_releases+1])
-    release = os.path.join (releases, "..", "release")
-  except ValueError:
+    svn.info (start_from)
+  except pysvn.ClientError:
+    #
+    # Not a subversion checkout; don't try
+    # to guess.
+    #
     return None
-    
-  if os.path.isdir (release):
-    return os.path.abspath (release)
+  else:
+    directory = os.path.abspath (start_from)
+    parts = [part.lower () for part in directory.split (os.sep)]
+    try:
+      n_releases = parts.index ("release")
+      releases = os.sep.join (parts[:n_releases+1])
+      release = os.path.join (releases, "..", "base")
+    except ValueError:
+      return None
+
+    if os.path.isdir (release):
+      return os.path.abspath (release)
+    else:
+      return None
 
 def get_release_candidates (release_path):
-  return [os.path.basename (filepath) for filepath in glob.glob (os.path.join (release_path, "*.sql"))]
+  if release_path:
+    return [os.path.basename (filepath) for filepath in glob.glob (os.path.join (release_path, "*.sql"))]
+  else:
+    return []
 
 def rescript_objects ((server, database), objects_affected):
   #
@@ -128,15 +144,33 @@ def main (directory, (server, database)):
 
 class ReleaseConfig (object):
 
-  def __init__ (self, filename):
+  def __init__ (self, filename=None):
     self.ini_filename = filename
     self.ini = ConfigParser.ConfigParser ()
     self.ini.read (filename)
 
     if self.ini.has_section ("files"):
+      if self.ini.has_option ("files", "directory"):
+        self.directory = self.ini.get ("files", "directory")
+      else:
+        self.directory = ""
       self.filenames = [self.ini.get ("files", i) for i in self.ini.options ("files")]
     else:
+      self.directory = ""
       self.filenames = []
+      
+    if self.ini.has_section ("database"):
+      db_options = dict (self.ini.items ("database"))
+    else:
+      db_options = {}    
+    self.server = db_options.get ("server", "")
+    self.database = db_options.get ("database", "")
+    
+    if self.ini.has_section ("scripting"):
+      scripting_options = dict (self.ini.items ("scripting"))
+    else:
+      scripting_options = {}
+    self.script_to = scripting_options.get ("script_to", "")
 
 if __name__ == '__main__':
   if len (sys.argv) > 1:

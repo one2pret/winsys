@@ -1,0 +1,30 @@
+[files]
+;
+; Directory which contains .sql files. Normally this will
+; be the directory this .release file is in, but it can
+; be another, allowing for a set of .release files.
+;
+; directory = .
+;
+; List of files in release order. Since the .ini
+; format demands a "name=value" pair, use arbitrary
+; names such as 001=filename.sql. NB All the .sql files
+; in the folder will be listed, but only these will be
+; ticked initially. If no files are present here, all
+; .sql files in the folder are ticked for release.
+;
+
+
+[database]
+;
+; Server/Database to compile to. Defaults are VODEV1/DEV.
+;
+; server=VODEV1
+; database=DEV
+
+[scripting]
+;
+; Base directory to script under. Folders will be created called
+; tables, procedures, functions, triggers, views etc. under this.
+;
+; script_to = c:/work_in_progress/cas
