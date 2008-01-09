@@ -94,14 +94,14 @@ def get_release_candidates (release_path):
   else:
     return []
 
-def rescript_objects ((server, database), objects_affected):
+def rescript_objects ((server, database), objects_affected, release_directory=None):
   #
   # Attempt to find an ancestory called "releases". Then
   # find that directory's "release" sibling. If that fails
   # at any stage, don't try to script.
   #
-  release_directory = find_release_directory ()
-  if release_directory is None:
+  release_directory = release_directory or find_release_directory ()
+  if not release_directory:
     print "No release directory found; not scripting"
   else:
     print "Scripting to", release_directory
@@ -116,6 +116,13 @@ def rescript_objects ((server, database), objects_affected):
         f.write (dmo.scripted (type, name, extra_info))
       finally:
         f.close ()
+
+def affected_objects (filepaths):
+  objects = set ()
+  for filepath in filepaths:
+    sql_text = "\n".join (line for line in open (filepath).read ().splitlines () if not line.startswith ("--"))
+    objects.update (db_objects (sql_text))
+  return objects
 
 def main (directory, (server, database)):
   print "Working in", os.path.abspath (directory)

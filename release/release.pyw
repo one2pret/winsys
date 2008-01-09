@@ -38,9 +38,10 @@ class DelayedComboBox (wx.ComboBox):
   def OnFocus (self, event):
     if not self.Items:
       self.Value = "Please wait..."
+      values = self.filler ()
       self.Items = self.filler ()
 
-    event.Skip ()
+    #~ event.Skip ()
 
 class TextCtrl (wx.TextCtrl):
   
@@ -68,9 +69,11 @@ class Frame (wx.Frame):
     wx.Frame.__init__ (self, parent, size=(600, 400))
     panel = wx.Panel (self)
 
-    specfile_label = wx.StaticText (panel, label="Release spec")
-    self.specfile = TextCtrl (self.OnSpecfileChange, parent=panel, value="")
-    specfile_button = wx.Button (panel, size=(24, 20), label="...")
+    #~ specfile_label = wx.StaticText (panel, label="Release spec")
+    #~ self.specfile = TextCtrl (self.OnSpecfileChange, parent=panel, value="")
+    #~ specfile_button = wx.Button (panel, size=(24, 20), label="...")
+    
+    self.release_filename = release_filename or ""
     
     self.do_script_to = wx.CheckBox (panel)
     script_to_label = wx.StaticText (panel, label="Script to")
@@ -78,7 +81,8 @@ class Frame (wx.Frame):
     self.script_to_button = wx.Button (panel, size=(24, 20), label="...")
     
     self.do_compile_to = wx.CheckBox (panel)
-    compile_to_label = wx.StaticText (panel, label="Compile to")
+    compile_to_label = wx.StaticText (panel, label="Compile first")
+    
     server_label = wx.StaticText (panel, label="Server")
     self.server = DelayedComboBox (releaselib.servers, panel)
     db_label = wx.StaticText (panel, label="Database")
@@ -87,29 +91,29 @@ class Frame (wx.Frame):
     self.directory = TextCtrl (self.log, parent=panel, value="")
     directory_button = wx.Button (panel, size=(24, 20), label="...")
     
-    self.checklist = wx.CheckListBox (panel)
+    self.checklist = wx.CheckListBox (panel, style=wx.LB_EXTENDED)
     self.output = TextCtrl (self.log, parent=panel, style=wx.TE_MULTILINE)
     self.release_button = wx.Button (panel, label="Release")
     cancel_button = wx.Button (panel, id=wx.ID_CANCEL)
 
-    h_specfile = wx.BoxSizer (wx.HORIZONTAL)
-    h_specfile.Add (specfile_label, 0, wx.ALL, 5)
-    h_specfile.Add (self.specfile, 1, wx.EXPAND | wx.ALL, 5)
-    h_specfile.Add (specfile_button, 0, wx.ALL, 5)
+    #~ h_specfile = wx.BoxSizer (wx.HORIZONTAL)
+    #~ h_specfile.Add (specfile_label, 0, wx.ALL, 5)
+    #~ h_specfile.Add (self.specfile, 1, wx.EXPAND | wx.ALL, 5)
+    #~ h_specfile.Add (specfile_button, 0, wx.ALL, 5)
     
     h_directory = wx.BoxSizer (wx.HORIZONTAL)
     h_directory.Add (self.directory, 1, wx.EXPAND | wx.ALL, 3)
     h_directory.Add (directory_button, 0, wx.ALL, 3)
     
     h_script_to = wx.BoxSizer (wx.HORIZONTAL)
+    h_script_to.Add (self.do_compile_to, 0, wx.ALL, 5)
+    h_script_to.Add (compile_to_label, 0, wx.ALL, 5)
     h_script_to.Add (self.do_script_to, 0, wx.ALL, 5)
     h_script_to.Add (script_to_label, 0, wx.ALL, 5)
     h_script_to.Add (self.script_to, 1, wx.EXPAND | wx.ALL, 5)
     h_script_to.Add (self.script_to_button, 0, wx.ALL, 5)
-
+    
     h_database = wx.BoxSizer (wx.HORIZONTAL)
-    h_database.Add (self.do_compile_to, 0, wx.ALL, 5)
-    h_database.Add (compile_to_label, 0, wx.ALL, 5)
     h_database.Add (server_label, 0, wx.ALL, 5)
     h_database.Add (self.server, 1, wx.EXPAND | wx.ALL, 5)
     h_database.Add (db_label, 0, wx.ALL, 5)
@@ -131,9 +135,9 @@ class Frame (wx.Frame):
     h_buttons.Add (self.release_button, 0, wx.ALL, 5)
     
     v3 = wx.BoxSizer (wx.VERTICAL)
-    v3.Add (h_specfile, 0, wx.EXPAND)
-    v3.Add (h_script_to, 0, wx.EXPAND)
+    #~ v3.Add (h_specfile, 0, wx.EXPAND)
     v3.Add (h_database, 0, wx.EXPAND)
+    v3.Add (h_script_to, 0, wx.EXPAND)
     v3.Add (h2, 1, wx.EXPAND)
     v3.Add (h_buttons, 0, wx.ALIGN_RIGHT)
 
@@ -142,7 +146,7 @@ class Frame (wx.Frame):
     self.Centre ()
     self.Show (True)
 
-    self.Bind (wx.EVT_BUTTON, self.OnSpecfileButton, id=specfile_button.Id)
+    #~ self.Bind (wx.EVT_BUTTON, self.OnSpecfileButton, id=specfile_button.Id)
     self.Bind (wx.EVT_CHECKBOX, self.check_for_script_to, id=self.do_script_to.Id)
     self.Bind (wx.EVT_CHECKBOX, self.check_for_compile_to, id=self.do_compile_to.Id)
     self.Bind (wx.EVT_BUTTON, self.OnScriptToButton, id=self.script_to_button.Id)
@@ -152,6 +156,7 @@ class Frame (wx.Frame):
     
     self.Bind (wx.EVT_LISTBOX_DCLICK, self.OnCheckListDClick, id=self.checklist.Id)
     self.Bind (wx.EVT_CHECKLISTBOX, self.OnCheckListBox, id=self.checklist.Id)
+    self.checklist.Bind (wx.EVT_RIGHT_DOWN, self.OnDragInit)
     self.server.Bind (wx.EVT_KILL_FOCUS, self.OnServer)
     self.server.Bind (wx.EVT_TEXT, self.OnServer)
     
@@ -164,13 +169,13 @@ class Frame (wx.Frame):
     self.reset (release_filename)
 
   def reset (self, release_filename):
-    self.specfile.Value = release_filename
+    #~ self.specfile.Value = release_filename
+    self.config = releaselib.ReleaseConfig (release_filename)
     if os.path.isfile (release_filename):
-      self.config = releaselib.ReleaseConfig (release_filename)
-      self.script_to.Value = self.config.script_to or releaselib.find_release_directory (os.path.dirname (self.specfile.Value)) or ""
+      self.script_to.Value = self.config.script_to or releaselib.find_release_directory (os.path.dirname (self.release_filename)) or ""
       self.server.Value = self.config.server or DEFAULT_SERVER
       self.db.Value = self.config.database or DEFAULT_DB
-      self.directory.Value = self.config.directory or os.path.dirname (self.specfile.Value)
+      self.directory.Value = self.config.directory or os.path.dirname (self.release_filename)
 
     else:
       self.log ("No such specfile")
@@ -179,6 +184,7 @@ class Frame (wx.Frame):
       self.db.Value = DEFAULT_DB
       self.directory.Value = ""
 
+    self.SetLabel (release_filename or "<No specfile used>")
     self.populate_checklist ()
     self.check_for_script_to ()
     self.check_for_compile_to ()
@@ -222,31 +228,33 @@ class Frame (wx.Frame):
     self.output.AppendText ("\n")
   
   def OnCheckListDClick (self, event):
-    self.log ("CheckList -> " + str (self.checklist.GetStringSelection ()))
-    os.startfile (self.checklist.GetStringSelection ())
+    for item in self.checklist.Selections:
+      filename = self.checklist.GetString (item)
+      self.log ("CheckList -> " + filename)
+      os.startfile (os.path.join (self.directory.Value, filename))
   
-  def OnSpecfileChange (self, value):
-    self.reset (value)
+  #~ def OnSpecfileChange (self, value):
+    #~ self.reset (value)
   
-  def OnSpecfileButton (self, event):
-    dlg = wx.FileDialog (
-      self,
-      "Choose a .release file",
-      os.path.dirname (self.specfile.Value),
-      wildcard="*.release",
-      style=wx.FD_FILE_MUST_EXIST | wx.FD_OPEN
-    )
-    try:
-      if dlg.ShowModal () == wx.ID_OK:
-        self.OnSpecfileChange (dlg.Path)
-    finally:
-      dlg.Destroy ()
+  #~ def OnSpecfileButton (self, event):
+    #~ dlg = wx.FileDialog (
+      #~ self,
+      #~ "Choose a .release file",
+      #~ os.path.dirname (self.specfile.Value),
+      #~ wildcard="*.release",
+      #~ style=wx.FD_FILE_MUST_EXIST | wx.FD_OPEN
+    #~ )
+    #~ try:
+      #~ if dlg.ShowModal () == wx.ID_OK:
+        #~ self.OnSpecfileChange (dlg.Path)
+    #~ finally:
+      #~ dlg.Destroy ()
 
   def OnDirectoryButton (self, event):
     dlg = wx.DirDialog (
       self,
       "Choose a scripts folder",
-      os.path.dirname (self.directory.Value),
+      os.path.dirname (self.directory.Value + os.sep),
       style=wx.DD_DIR_MUST_EXIST | wx.DD_DEFAULT_STYLE
     )
     try:
@@ -262,15 +270,15 @@ class Frame (wx.Frame):
     self.check_for_release ()
   
   def check_for_compile_to (self, event=None):
-    self.server.Enable (self.do_compile_to.IsChecked ())
-    self.db.Enable (self.do_compile_to.IsChecked ())
+    #~ self.server.Enable (self.do_compile_to.IsChecked ())
+    #~ self.db.Enable (self.do_compile_to.IsChecked ())
     self.check_for_release ()
   
   def OnScriptToButton (self, event):
     dlg = wx.DirDialog (
       self,
       "Choose a folder to script to",
-      os.path.dirname (self.script_to.Value or releaselib.find_release_directory ()),
+      os.path.dirname ((self.script_to.Value or releaselib.find_release_directory () or "") + os.sep),
       style=wx.DD_DIR_MUST_EXIST | wx.DD_DEFAULT_STYLE
     )
     try:
@@ -289,6 +297,19 @@ class Frame (wx.Frame):
   def OnCancel (self, event):
     wx.Exit ()
     
+  def OnDragInit(self, event):
+    """ Begin a Drag Operation """
+    selection = self.checklist.HitTest (event.Position)
+    if selection not in self.checklist.Selections:
+      self.checklist.DeselectAll ()
+      self.checklist.Select (selection)
+    tdo = wx.FileDataObject ()
+    for selection in self.checklist.Selections:
+      tdo.AddFile (os.path.join (self.directory.Value, self.checklist.GetString (selection)))
+    tds = wx.DropSource (self.checklist)
+    tds.SetData (tdo)
+    tds.DoDragDrop (True)
+
 class ReleaseApp (wx.App):
   
   def __init__ (self, release_filename, *args, **kwargs):
@@ -304,5 +325,6 @@ if __name__ == '__main__':
     release_filename = sys.argv[1]
   else:
     release_filename = ""
+  open ("wx.log", "w").close ()
   app = ReleaseApp (release_filename, filename="wx.log")
   app.MainLoop ()
