@@ -41,8 +41,6 @@ class DelayedComboBox (wx.ComboBox):
       values = self.filler ()
       self.Items = self.filler ()
 
-    #~ event.Skip ()
-
 class TextCtrl (wx.TextCtrl):
   
   def __init__ (self, on_change, *args, **kwargs):
@@ -69,10 +67,6 @@ class Frame (wx.Frame):
     wx.Frame.__init__ (self, parent, size=(600, 400))
     panel = wx.Panel (self)
 
-    #~ specfile_label = wx.StaticText (panel, label="Release spec")
-    #~ self.specfile = TextCtrl (self.OnSpecfileChange, parent=panel, value="")
-    #~ specfile_button = wx.Button (panel, size=(24, 20), label="...")
-    
     self.release_filename = release_filename or ""
     
     self.do_script_to = wx.CheckBox (panel)
@@ -96,11 +90,6 @@ class Frame (wx.Frame):
     self.release_button = wx.Button (panel, label="Release")
     cancel_button = wx.Button (panel, id=wx.ID_CANCEL)
 
-    #~ h_specfile = wx.BoxSizer (wx.HORIZONTAL)
-    #~ h_specfile.Add (specfile_label, 0, wx.ALL, 5)
-    #~ h_specfile.Add (self.specfile, 1, wx.EXPAND | wx.ALL, 5)
-    #~ h_specfile.Add (specfile_button, 0, wx.ALL, 5)
-    
     h_directory = wx.BoxSizer (wx.HORIZONTAL)
     h_directory.Add (self.directory, 1, wx.EXPAND | wx.ALL, 3)
     h_directory.Add (directory_button, 0, wx.ALL, 3)
@@ -135,7 +124,6 @@ class Frame (wx.Frame):
     h_buttons.Add (self.release_button, 0, wx.ALL, 5)
     
     v3 = wx.BoxSizer (wx.VERTICAL)
-    #~ v3.Add (h_specfile, 0, wx.EXPAND)
     v3.Add (h_database, 0, wx.EXPAND)
     v3.Add (h_script_to, 0, wx.EXPAND)
     v3.Add (h2, 1, wx.EXPAND)
@@ -146,7 +134,6 @@ class Frame (wx.Frame):
     self.Centre ()
     self.Show (True)
 
-    #~ self.Bind (wx.EVT_BUTTON, self.OnSpecfileButton, id=specfile_button.Id)
     self.Bind (wx.EVT_CHECKBOX, self.check_for_script_to, id=self.do_script_to.Id)
     self.Bind (wx.EVT_CHECKBOX, self.check_for_compile_to, id=self.do_compile_to.Id)
     self.Bind (wx.EVT_BUTTON, self.OnScriptToButton, id=self.script_to_button.Id)
@@ -169,7 +156,6 @@ class Frame (wx.Frame):
     self.reset (release_filename)
 
   def reset (self, release_filename):
-    #~ self.specfile.Value = release_filename
     self.config = releaselib.ReleaseConfig (release_filename)
     if os.path.isfile (release_filename):
       self.script_to.Value = self.config.script_to or releaselib.find_release_directory (os.path.dirname (self.release_filename)) or ""
@@ -233,23 +219,6 @@ class Frame (wx.Frame):
       self.log ("CheckList -> " + filename)
       os.startfile (os.path.join (self.directory.Value, filename))
   
-  #~ def OnSpecfileChange (self, value):
-    #~ self.reset (value)
-  
-  #~ def OnSpecfileButton (self, event):
-    #~ dlg = wx.FileDialog (
-      #~ self,
-      #~ "Choose a .release file",
-      #~ os.path.dirname (self.specfile.Value),
-      #~ wildcard="*.release",
-      #~ style=wx.FD_FILE_MUST_EXIST | wx.FD_OPEN
-    #~ )
-    #~ try:
-      #~ if dlg.ShowModal () == wx.ID_OK:
-        #~ self.OnSpecfileChange (dlg.Path)
-    #~ finally:
-      #~ dlg.Destroy ()
-
   def OnDirectoryButton (self, event):
     dlg = wx.DirDialog (
       self,
@@ -270,8 +239,6 @@ class Frame (wx.Frame):
     self.check_for_release ()
   
   def check_for_compile_to (self, event=None):
-    #~ self.server.Enable (self.do_compile_to.IsChecked ())
-    #~ self.db.Enable (self.do_compile_to.IsChecked ())
     self.check_for_release ()
   
   def OnScriptToButton (self, event):
@@ -325,6 +292,10 @@ if __name__ == '__main__':
     release_filename = sys.argv[1]
   else:
     release_filename = ""
-  open ("wx.log", "w").close ()
-  app = ReleaseApp (release_filename, filename="wx.log")
+  try:
+    open ("wx.log", "w").close ()
+  except IOError:
+    app = ReleaseApp (release_filename)
+  else:
+    app = ReleaseApp (release_filename, filename="wx.log")
   app.MainLoop ()
