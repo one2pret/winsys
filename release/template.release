@@ -13,7 +13,8 @@
 ; ticked initially. If no files are present here, all
 ; .sql files in the folder are ticked for release.
 ;
-
+; 001=v_data.sql
+; 002=pr_do_stuff.sql
 
 [database]
 ;
