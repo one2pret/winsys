@@ -10,7 +10,10 @@ import sql
 import sqldmo
 
 def databases (server):
-  return sqldmo.databases (server)
+  try:
+    return sqldmo.databases (server)
+  except sqldmo.SQLDMO_Exception:
+    return []
 
 def servers ():
   return sqldmo.servers ()

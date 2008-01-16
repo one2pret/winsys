@@ -1,4 +1,5 @@
 import os, sys
+import tempfile
 import types
 import wx
 
@@ -34,12 +35,12 @@ class DelayedComboBox (wx.ComboBox):
     self.filler = filler
 
     self.Bind (wx.EVT_SET_FOCUS, self.OnFocus)
-    
+
   def OnFocus (self, event):
     if not self.Items:
       self.Value = "Please wait..."
-      values = self.filler ()
       self.Items = self.filler ()
+    event.Skip ()
 
 class TextCtrl (wx.TextCtrl):
   
@@ -78,9 +79,9 @@ class Frame (wx.Frame):
     compile_to_label = wx.StaticText (panel, label="Compile first")
     
     server_label = wx.StaticText (panel, label="Server")
-    self.server = DelayedComboBox (releaselib.servers, panel)
+    self.server = DelayedComboBox (self.servers, panel)
     db_label = wx.StaticText (panel, label="Database")
-    self.db = wx.ComboBox (panel)
+    self.db = DelayedComboBox (self.databases, panel)
     
     self.directory = TextCtrl (self.log, parent=panel, value="")
     directory_button = wx.Button (panel, size=(24, 20), label="...")
@@ -144,7 +145,7 @@ class Frame (wx.Frame):
     self.Bind (wx.EVT_LISTBOX_DCLICK, self.OnCheckListDClick, id=self.checklist.Id)
     self.Bind (wx.EVT_CHECKLISTBOX, self.OnCheckListBox, id=self.checklist.Id)
     self.checklist.Bind (wx.EVT_RIGHT_DOWN, self.OnDragInit)
-    self.server.Bind (wx.EVT_KILL_FOCUS, self.OnServer)
+    #~ self.server.Bind (wx.EVT_KILL_FOCUS, self.OnServer)
     self.server.Bind (wx.EVT_TEXT, self.OnServer)
     
     self.AcceleratorTable = wx.AcceleratorTable (
@@ -153,10 +154,13 @@ class Frame (wx.Frame):
       ]
     )
     
+    self._servers = None
+    
     self.reset (release_filename)
 
   def reset (self, release_filename):
     self.config = releaselib.ReleaseConfig (release_filename)
+    #~ self.server.Items = self._servers
     if os.path.isfile (release_filename):
       self.script_to.Value = self.config.script_to or releaselib.find_release_directory (os.path.dirname (self.release_filename)) or ""
       self.server.Value = self.config.server or DEFAULT_SERVER
@@ -176,6 +180,14 @@ class Frame (wx.Frame):
     self.check_for_compile_to ()
     self.check_for_release ()
 
+  def servers (self):
+    if self._servers is None:
+      self._servers = releaselib.servers ()
+    return self._servers
+    
+  def databases (self):
+    return releaselib.databases (self.server.Value)
+  
   def populate_checklist (self):
     self.checklist.Clear ()
     filenames = self.config.filenames = releaselib.get_release_candidates (self.directory.Value)
@@ -200,8 +212,14 @@ class Frame (wx.Frame):
   def OnServer (self, event):
     self.log ("OnServer")
     self.log (event)
-    self.db.Clear ()
+    db_value = self.db.Value
     self.db.Items = releaselib.databases (self.server.Value)
+    self.log ("db_value = %s" % db_value)
+    self.log ("db.Items = %s" % self.db.Items)
+    if db_value in self.db.Items:
+      self.db.Value = db_value
+    else:
+      self.db.Value = ""
     event.Skip ()
     
   def OnCheckListBox (self, event):
@@ -292,10 +310,13 @@ if __name__ == '__main__':
     release_filename = sys.argv[1]
   else:
     release_filename = ""
+  
+  log_filename = os.path.join (tempfile.gettempdir (), "wx.log")
   try:
-    open ("wx.log", "w").close ()
+    open (log_filename, "w").close ()
   except IOError:
-    app = ReleaseApp (release_filename)
+    app = ReleaseApp (release_filename, redirect=False)
   else:
-    app = ReleaseApp (release_filename, filename="wx.log")
+    app = ReleaseApp (release_filename, redirect=True, filename=log_filename)
+  
   app.MainLoop ()
