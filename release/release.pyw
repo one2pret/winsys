@@ -1,8 +1,11 @@
 import os, sys
 import tempfile
+import traceback
 import types
 import wx
+import wx.richtext as rt
 
+import pysvn
 import releaselib
 
 """
@@ -37,42 +40,47 @@ class DelayedComboBox (wx.ComboBox):
     self.Bind (wx.EVT_SET_FOCUS, self.OnFocus)
 
   def OnFocus (self, event):
-    if not self.Items:
-      self.Value = "Please wait..."
-      self.Items = self.filler ()
+    value = self.Value
+    self.Value = "Please wait..."
+    self.Items = self.filler ()
+    if value in self.Items:
+      self.Value = value
+    else:
+      self.Value = ""
+      
     event.Skip ()
 
-class TextCtrl (wx.TextCtrl):
+#~ class TextCtrl (wx.TextCtrl):
   
-  def __init__ (self, on_change, *args, **kwargs):
-    wx.TextCtrl.__init__ (self, *args, **kwargs)
-    self.on_change = on_change
-    self.old_value = None
+  #~ def __init__ (self, on_change, *args, **kwargs):
+    #~ wx.TextCtrl.__init__ (self, *args, **kwargs)
+    #~ self.on_change = on_change
+    #~ self.old_value = None
     
-    self.Bind (wx.EVT_SET_FOCUS, self.OnFocus)
-    self.Bind (wx.EVT_KILL_FOCUS, self.OnBlur)
+    #~ self.Bind (wx.EVT_SET_FOCUS, self.OnFocus)
+    #~ self.Bind (wx.EVT_KILL_FOCUS, self.OnBlur)
     
-  def OnFocus (self, event):
-    self.old_value = self.Value
-    event.Skip ()
+  #~ def OnFocus (self, event):
+    #~ self.old_value = self.Value
+    #~ event.Skip ()
     
-  def OnBlur (self, event):
-    if self.on_change and self.Value <> self.old_value:
-      self.on_change (self.Value)
-    self.old_value = None
-    event.Skip ()
+  #~ def OnBlur (self, event):
+    #~ if self.on_change and self.Value <> self.old_value:
+      #~ self.on_change (self.Value)
+    #~ self.old_value = None
+    #~ event.Skip ()
 
 class Frame (wx.Frame):
 
   def __init__ (self, release_filename, parent=None):
-    wx.Frame.__init__ (self, parent, size=(600, 400))
+    wx.Frame.__init__ (self, parent, size=(800, 600))
     panel = wx.Panel (self)
 
     self.release_filename = release_filename or ""
     
     self.do_script_to = wx.CheckBox (panel)
     script_to_label = wx.StaticText (panel, label="Script to")
-    self.script_to = TextCtrl (self.log, parent=panel, value="")
+    self.script_to = wx.TextCtrl (parent=panel, value="")
     self.script_to_button = wx.Button (panel, size=(24, 20), label="...")
     
     self.do_compile_to = wx.CheckBox (panel)
@@ -82,14 +90,18 @@ class Frame (wx.Frame):
     self.server = DelayedComboBox (self.servers, panel)
     db_label = wx.StaticText (panel, label="Database")
     self.db = DelayedComboBox (self.databases, panel)
+    username_label = wx.StaticText (panel, label="Username")
+    self.username = wx.TextCtrl (parent=panel, value="")
+    password_label = wx.StaticText (panel, label="Password")
+    self.password = wx.TextCtrl (parent=panel, value="")
     
-    self.directory = TextCtrl (self.log, parent=panel, value="")
+    self.directory = wx.TextCtrl (parent=panel, value="")
     directory_button = wx.Button (panel, size=(24, 20), label="...")
     
     self.checklist = wx.CheckListBox (panel, style=wx.LB_EXTENDED)
-    self.output = TextCtrl (self.log, parent=panel, style=wx.TE_MULTILINE)
+    self.output = rt.RichTextCtrl (parent=panel, style=wx.TE_MULTILINE)
     self.release_button = wx.Button (panel, label="Release")
-    cancel_button = wx.Button (panel, id=wx.ID_CANCEL)
+    cancel_button = wx.Button (panel, label="Close", id=wx.ID_CANCEL)
 
     h_directory = wx.BoxSizer (wx.HORIZONTAL)
     h_directory.Add (self.directory, 1, wx.EXPAND | wx.ALL, 3)
@@ -108,6 +120,10 @@ class Frame (wx.Frame):
     h_database.Add (self.server, 1, wx.EXPAND | wx.ALL, 5)
     h_database.Add (db_label, 0, wx.ALL, 5)
     h_database.Add (self.db, 1, wx.EXPAND | wx.ALL, 5)
+    h_database.Add (username_label, 0, wx.ALL, 5)
+    h_database.Add (self.username, 1, wx.EXPAND | wx.ALL, 5)
+    h_database.Add (password_label, 0, wx.ALL, 5)
+    h_database.Add (self.password, 1, wx.EXPAND | wx.ALL, 5)
     
     v_checklist = wx.BoxSizer (wx.VERTICAL)
     v_checklist.Add (h_directory, 0, wx.EXPAND, 0)
@@ -118,7 +134,7 @@ class Frame (wx.Frame):
 
     h2 = wx.BoxSizer (wx.HORIZONTAL)
     h2.Add (v_checklist, 1, wx.EXPAND | wx.ALL)
-    h2.Add (v_output, 1, wx.EXPAND | wx.ALL)
+    h2.Add (v_output, 2, wx.EXPAND | wx.ALL)
 
     h_buttons = wx.BoxSizer (wx.HORIZONTAL)
     h_buttons.Add (cancel_button, 0, wx.ALL,5)
@@ -145,8 +161,9 @@ class Frame (wx.Frame):
     self.Bind (wx.EVT_LISTBOX_DCLICK, self.OnCheckListDClick, id=self.checklist.Id)
     self.Bind (wx.EVT_CHECKLISTBOX, self.OnCheckListBox, id=self.checklist.Id)
     self.checklist.Bind (wx.EVT_RIGHT_DOWN, self.OnDragInit)
-    #~ self.server.Bind (wx.EVT_KILL_FOCUS, self.OnServer)
-    self.server.Bind (wx.EVT_TEXT, self.OnServer)
+    #~ self.server.Bind (wx.EVT_COMBOBOX, self.OnServerChange)
+    #~ self.server.Bind (wx.EVT_TEXT_ENTER, self.OnServerChange)
+    #~ self.server.Bind (wx.EVT_KILL_FOCUS, self.OnServerChange)
     
     self.AcceleratorTable = wx.AcceleratorTable (
       [
@@ -160,11 +177,12 @@ class Frame (wx.Frame):
 
   def reset (self, release_filename):
     self.config = releaselib.ReleaseConfig (release_filename)
-    #~ self.server.Items = self._servers
     if os.path.isfile (release_filename):
       self.script_to.Value = self.config.script_to or releaselib.find_release_directory (os.path.dirname (self.release_filename)) or ""
       self.server.Value = self.config.server or DEFAULT_SERVER
       self.db.Value = self.config.database or DEFAULT_DB
+      self.username.Value = self.config.username or ""
+      self.password.Value = self.config.password or ""
       self.directory.Value = self.config.directory or os.path.dirname (self.release_filename)
 
     else:
@@ -209,13 +227,9 @@ class Frame (wx.Frame):
 
     self.release_button.Enable (True)
 
-  def OnServer (self, event):
-    self.log ("OnServer")
-    self.log (event)
+  def OnServerChange (self, event):
     db_value = self.db.Value
     self.db.Items = releaselib.databases (self.server.Value)
-    self.log ("db_value = %s" % db_value)
-    self.log ("db.Items = %s" % self.db.Items)
     if db_value in self.db.Items:
       self.db.Value = db_value
     else:
@@ -224,6 +238,13 @@ class Frame (wx.Frame):
     
   def OnCheckListBox (self, event):
     self.check_for_release ()
+  
+  def log_traceback (self):
+    self.output.Newline ()
+    self.output.BeginBold ()
+    self.output.AppendText (unicode (traceback.format_exc ()))
+    self.output.EndBold ()
+    self.output.Newline ()
   
   def log (self, data, clear_first=False):
     if clear_first:
@@ -234,7 +255,6 @@ class Frame (wx.Frame):
   def OnCheckListDClick (self, event):
     for item in self.checklist.Selections:
       filename = self.checklist.GetString (item)
-      self.log ("CheckList -> " + filename)
       os.startfile (os.path.join (self.directory.Value, filename))
   
   def OnDirectoryButton (self, event):
@@ -273,11 +293,40 @@ class Frame (wx.Frame):
       dlg.Destroy ()
 
   def OnRelease (self, event):
-    self.log (self.AcceleratorTable)
-    for i, filename in enumerate (self.checklist.GetStrings ()):
-      if self.checklist.IsChecked (i):
-        self.log ("%d: %s" % (i, filename))
-    self.log ("Released!")
+    filenames = [os.path.join (self.directory.Value, f) for i, f in enumerate (self.checklist.GetStrings ()) if self.checklist.IsChecked (i)]
+    
+    self.log ("Release", clear_first=True)
+    try:
+      if self.do_compile_to.IsChecked ():
+        self.log ("\nCompiling to: %s on %s" % (self.db.Value, self.server.Value))
+        releaselib.release_objects ((self.server.Value, self.db.Value, self.username.Value, self.password.Value), filenames, self.log)
+      
+      if self.do_script_to.IsChecked ():
+        self.log ("\nScripting to: %s" % self.script_to.Value)
+        affected_objects = releaselib.affected_objects (filenames)
+        released_filenames = releaselib.rescript_objects (
+          (self.server.Value, self.db.Value, self.username.Value, self.password.Value), 
+          affected_objects, 
+          self.script_to.Value, 
+          self.log
+        )
+        for filename in released_filenames:
+          self.log ("  -> %s" % filename)
+        
+        heat_call = self.config.heat_call ()
+        if heat_call:
+          commit_summary = "Release package for HEAT #%d" % heat_call
+        else:
+          commit_summary = "Release package for %s" % self.directory.Value
+        commit_message = "%s\n\n%s" % (commit_summary, "\n".join (name for type, name, table in affected_objects))
+        releaselib.commit_objects (released_filenames, commit_message)
+
+    except:
+      self.log_traceback ()
+    else:
+      self.do_script_to.Value = 0
+      self.do_compile_to.Value = 0
+      self.check_for_release ()
 
   def OnCancel (self, event):
     wx.Exit ()

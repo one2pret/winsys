@@ -3,6 +3,7 @@ import ConfigParser
 import fnmatch
 import glob
 import re
+import subprocess
 
 import pyodbc
 import pysvn
@@ -18,7 +19,7 @@ def databases (server):
 def servers ():
   return sqldmo.servers ()
 
-def database_connection (server, database):
+def database_connection (server, database, username=None, password=None):
   """Attempt to create a database context equivalent
   to that of Query Analyzer."""
   INITIAL_SQL = """
@@ -37,7 +38,7 @@ set ansi_warnings off
 set quoted_identifier off
 set lock_timeout -1
 """
-  db = sql.pyodbc_connection (server, database)
+  db = sql.pyodbc_connection (server, database, username, password)
   db.execute (INITIAL_SQL)
   return db
 
@@ -50,7 +51,7 @@ def db_objects (sql_text):
     else:
       yield type, name.strip ("[]"), table_affected
 
-def release (db, sql_text):
+def release (db, sql_text, callback=None):
   OUTPUT_WIDTH = 60
   for n, statement in enumerate (sql_text.split ("\nGO")):
     statement = statement.lstrip ()
@@ -59,12 +60,11 @@ def release (db, sql_text):
       output_statement = statement[:OUTPUT_WIDTH] + "..."
     else:
       output_statement = statement
-    print "%03d => %s" % (1+n, output_statement.replace ("\n", " "))
+    #~ if callback: callback ("  -> %s" % output_statement.replace ("\n", " "))
     try:
       sql.execute_sql (db, sql_text)
     except sql.pyodbc.Error, (error_code, error_details):
-      print "\n".join (error_details.split (";"))
-      return
+      raise Exception ("\n".join (error_details.split (";")))
 
 def find_release_directory (start_from="."):
   svn = pysvn.Client ()
@@ -92,42 +92,71 @@ def find_release_directory (start_from="."):
       return None
 
 def get_release_candidates (release_path):
-  if release_path:
+  if os.path.isdir (release_path):
     return [os.path.basename (filepath) for filepath in glob.glob (os.path.join (release_path, "*.sql"))]
   else:
-    return []
+    raise Exception ("%s is not a directory" % release_path)
 
-def rescript_objects ((server, database), objects_affected, release_directory=None):
-  #
-  # Attempt to find an ancestory called "releases". Then
-  # find that directory's "release" sibling. If that fails
-  # at any stage, don't try to script.
-  #
-  release_directory = release_directory or find_release_directory ()
-  if not release_directory:
-    print "No release directory found; not scripting"
-  else:
-    print "Scripting to", release_directory
-    
-    dmo = sqldmo.Database (server, database)
-    for type, name, extra_info in objects_affected:
-      print type, name
-      type_directory = os.path.join (release_directory, type.lower () + "s")
-      if not os.path.exists (type_directory): os.mkdir (type_directory)
-      f = open (os.path.join (type_directory, "%s.sql" % name), "wb")
-      try:
-        f.write (dmo.scripted (type, name, extra_info))
-      finally:
-        f.close ()
+def rescript_objects ((server, database, username, password), objects_affected, release_directory, callback=None):
+  if not os.path.isdir (release_directory):
+    raise Exception ("Release directory not found")
+  
+  scripter = os.path.join (os.path.dirname (__file__), "scripter.exe")
+  filenames = set ()
+  for object_type, object_name, table_affected in objects_affected:
+    if username:
+      connection_string = "%s:%s@%s" % (username, password, server)
+    else:
+      connection_string = server
+    cmd = [scripter, connection_string, database, release_directory, "%s:%s" % (object_type, object_name)]
+    process = subprocess.Popen (cmd, shell=True, stdout=subprocess.PIPE)
+    result = process.wait ()
+    output = process.stdout.read ()
+    if result == 0:
+      released_filenames = output.splitlines ()
+      filenames.update (os.path.normpath (f) for f in released_filenames)
+    else:
+      raise Exception (output)
+  
+  return filenames
 
 def affected_objects (filepaths):
   objects = set ()
   for filepath in filepaths:
-    sql_text = "\n".join (line for line in open (filepath).read ().splitlines () if not line.startswith ("--"))
+    sql_text = "\n".join (line for line in open (filepath).read ().splitlines () if not line.lstrip ().startswith ("--"))
     objects.update (db_objects (sql_text))
   return objects
 
-def main (directory, (server, database)):
+def release_objects ((server, database, username, password), filepaths, callback=None):
+  db = database_connection (server, database, username, password)
+  for filepath in filepaths:
+    if callback: callback ("  -> %s " % filepath)
+    sql_text = "\n".join (line for line in open (filepath).read ().splitlines ())
+    release (db, sql_text, callback)
+
+def commit_objects (filepaths, commit_message):
+  """Objects can be added, modified or deleted. Added objects are in
+  the directory but unversioned; modified are in the directory and
+  modified; deleted are versioned but are not in the directory.
+  svn add new objects; svn remove deleted object; ignore any unmodified objects
+  Then commit the lot.
+  """
+  svn = pysvn.Client ()
+  commit_package = []
+  for filepath in filepaths:
+    for change in svn.status (filepath):
+      if change.text_status == pysvn.wc_status_kind.unversioned:
+        svn.add (filepath)
+        commit_package.append (filepath)
+      elif change.text_status == pysvn.wc_status_kind.modified:
+        commit_package.append (filepath)
+      elif change.text_status == pysvn.wc_status_kind.missing:
+        svn.remove (filepath)
+        commit_package.append (filepath)
+  
+  svn.checkin (commit_package, commit_message)
+
+def main (directory, (server, database, username, password)):
   print "Working in", os.path.abspath (directory)
   
   db = database_connection (server, database)
@@ -150,7 +179,7 @@ def main (directory, (server, database)):
     
   print
   print "Scripting..."
-  rescript_objects ((server, database), sorted (objects_affected))
+  rescript_objects ((server, database, username, password), sorted (objects_affected))
 
 class ReleaseConfig (object):
 
@@ -159,15 +188,18 @@ class ReleaseConfig (object):
     self.ini = ConfigParser.ConfigParser ()
     self.ini.read (filename)
 
+    self.directory = self.filenames = None
     if self.ini.has_section ("files"):
       if self.ini.has_option ("files", "directory"):
         self.directory = self.ini.get ("files", "directory")
       else:
         self.directory = ""
-      self.filenames = [self.ini.get ("files", i) for i in self.ini.options ("files")]
-    else:
-      self.directory = ""
-      self.filenames = []
+      self.filenames = [self.ini.get ("files", i) for i in self.ini.options ("files") if i not in ['directory']]
+    
+    if not self.directory:
+      self.directory = os.path.dirname (filename)
+    if not self.filenames:
+      self.filenames = sorted (glob.glob (os.path.join (self.directory, "*.sql")))
       
     if self.ini.has_section ("database"):
       db_options = dict (self.ini.items ("database"))
@@ -175,12 +207,38 @@ class ReleaseConfig (object):
       db_options = {}    
     self.server = db_options.get ("server", "")
     self.database = db_options.get ("database", "")
+    self.username = db_options.get ("username", "")
+    self.password = db_options.get ("password", "")
     
     if self.ini.has_section ("scripting"):
       scripting_options = dict (self.ini.items ("scripting"))
     else:
       scripting_options = {}
     self.script_to = scripting_options.get ("script_to", "")
+    
+    self._heat_call = None
+    
+  def heat_call (self):
+    """Attempt to find the HEAT call associated with this package, as follows:
+    If the releasespec filename has a >=5-digit number in it, use that,
+    otherwise, walk back up the tree looking for a directory which starts
+    with a >=5-digit number
+    """
+    heat_call_re = re.compile ("(\d{5,8})")
+    if self._heat_call is None:
+      match = heat_call_re.search (self.ini_filename)
+      if match:
+        self._heat_call = int (match.group (0))
+      else:
+        directory = os.path.abspath (os.path.dirname (self.ini_filename))
+        parts = reversed (part.lower () for part in directory.split (os.sep))
+        for part in parts:
+          match = heat_call_re.match (part)
+          if match:
+            self._heat_call = int (match.group (0))
+            break
+
+    return self._heat_call
 
 if __name__ == '__main__':
   if len (sys.argv) > 1:
