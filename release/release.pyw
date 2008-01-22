@@ -50,26 +50,6 @@ class DelayedComboBox (wx.ComboBox):
       
     event.Skip ()
 
-#~ class TextCtrl (wx.TextCtrl):
-  
-  #~ def __init__ (self, on_change, *args, **kwargs):
-    #~ wx.TextCtrl.__init__ (self, *args, **kwargs)
-    #~ self.on_change = on_change
-    #~ self.old_value = None
-    
-    #~ self.Bind (wx.EVT_SET_FOCUS, self.OnFocus)
-    #~ self.Bind (wx.EVT_KILL_FOCUS, self.OnBlur)
-    
-  #~ def OnFocus (self, event):
-    #~ self.old_value = self.Value
-    #~ event.Skip ()
-    
-  #~ def OnBlur (self, event):
-    #~ if self.on_change and self.Value <> self.old_value:
-      #~ self.on_change (self.Value)
-    #~ self.old_value = None
-    #~ event.Skip ()
-
 class Frame (wx.Frame):
 
   def __init__ (self, release_filename, parent=None):
@@ -161,9 +141,6 @@ class Frame (wx.Frame):
     self.Bind (wx.EVT_LISTBOX_DCLICK, self.OnCheckListDClick, id=self.checklist.Id)
     self.Bind (wx.EVT_CHECKLISTBOX, self.OnCheckListBox, id=self.checklist.Id)
     self.checklist.Bind (wx.EVT_RIGHT_DOWN, self.OnDragInit)
-    #~ self.server.Bind (wx.EVT_COMBOBOX, self.OnServerChange)
-    #~ self.server.Bind (wx.EVT_TEXT_ENTER, self.OnServerChange)
-    #~ self.server.Bind (wx.EVT_KILL_FOCUS, self.OnServerChange)
     
     self.AcceleratorTable = wx.AcceleratorTable (
       [
@@ -176,8 +153,8 @@ class Frame (wx.Frame):
     self.reset (release_filename)
 
   def reset (self, release_filename):
-    self.config = releaselib.ReleaseConfig (release_filename)
-    if os.path.isfile (release_filename):
+    if release_filename:
+      self.config = releaselib.ReleaseConfig (release_filename)
       self.script_to.Value = self.config.script_to or releaselib.find_release_directory (os.path.dirname (self.release_filename)) or ""
       self.server.Value = self.config.server or DEFAULT_SERVER
       self.db.Value = self.config.database or DEFAULT_DB
