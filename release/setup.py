@@ -11,7 +11,7 @@ setup (
     dict (script="release.pyw"),
   ],
   data_files=[
-    (".", ["setup.reg", "scripter.exe"]),
+    (".", ["scripter.exe"]),
   ],
   options={
     "py2exe" : {
