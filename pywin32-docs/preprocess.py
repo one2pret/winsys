@@ -11,6 +11,18 @@ def munged_text (text):
   for entitydef in htmlentitydefs.entitydefs.keys ():
     text = re.sub (r"(&%s[^;])" % entitydef, "&%s;" % entitydef, text)
   text = re.sub (r"(&#\d+)[^;]", "\g<1>;", text)
+  
+  #
+  # Fixup unclosed <LI>
+  #
+  lines = []
+  for line in text.lower ().splitlines ():
+    if line.startswith ("<li>") and not line.endswith ("</li>"):
+      lines.append (line + "</li>")
+    else:
+      lines.append (line)
+  text = "\n".join (lines)
+  
   return html2rst.html2text (text)
 
 def main (args=None):
@@ -23,11 +35,16 @@ def main (args=None):
   os.system ("hh.exe -decompile %s %s" % (html_tempdir, chm_filepath))
   for dirname, dirnames, filenames in os.walk (html_tempdir):
     for filename in filenames:
+      if not filename.endswith (".html"): continue
       print filename
       base, ext = os.path.splitext (filename)
-      open (os.path.join (rst_tempdir, "%s.rst" % base), "w").write (
-        munged_text (open (os.path.join (dirname, filename)).read ())
-      )
+      try:
+        open (os.path.join (rst_tempdir, "%s.rst" % base), "w").write (
+          munged_text (open (os.path.join (dirname, filename)).read ()).encode ("utf8")
+        )
+      except:
+        print repr (munged_text (open (os.path.join (dirname, filename)).read ()))
+        raise
   
 if __name__ == '__main__':
   main (sys.argv[1:])
