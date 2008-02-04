@@ -13,7 +13,13 @@ def munged_text (text):
   for entitydef in htmlentitydefs.entitydefs.keys ():
     text = re.sub (r"(&%s)(?!;)" % entitydef, "\g<1>;", text)
   text = re.sub (r"(&#\d+)(?!;)", "\g<1>;", text)  
-  return html2rst.html2text (unicode (MinimalSoup (text)))
+  soup = unicode (MinimalSoup (text))
+  print soup
+  rst = html2rst.html2text (soup)
+  if not rst.strip ():
+    raise RuntimeError, "No RST"
+  else:
+    return rst
 
 def main (args=None):
   chm_filepath = os.path.join (sys.prefix, "lib", "site-packages", "PyWin32.chm")
