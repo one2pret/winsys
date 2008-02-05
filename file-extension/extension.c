@@ -57,10 +57,11 @@ windows_file_security (PyObject *self, PyObject *args)
         goto finish;
     }
 
-    mapping.GenericRead = FILE_GENERIC_READ; 
-    mapping.GenericWrite = FILE_GENERIC_WRITE;
-    mapping.GenericExecute = FILE_GENERIC_EXECUTE;
-    mapping.GenericAll = FILE_ALL_ACCESS;
+    access_desired = FILE_ACCESS_READ;
+    mapping.GenericRead = 0; 
+    mapping.GenericWrite = 0;
+    mapping.GenericExecute = 0;
+    mapping.GenericAll = 0;
 	  MapGenericMask (&access_desired, &mapping);
     
     if (!AccessCheck (
@@ -84,7 +85,7 @@ finish:
     if (PyErr_Occurred()) {
         return NULL;
     } else {
-        return Py_BuildValue ("i", is_access_granted);
+        return Py_BuildValue ("l", access_granted);
     }
 }
 
