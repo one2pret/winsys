@@ -28,43 +28,49 @@ winaccess (PyObject *self, PyObject *args)
     PyObject *m;
     long mode;
 	
-    if (!PyArg_UnpackTuple (args, "windows_file_security", 2, 2, &filepath, &m)) {
+    if (!PyArg_UnpackTuple (args, "winaccess", 2, 2, &filepath, &m)) {
         goto finish;
     }
   
     if (!PyUnicode_Check (filepath) && !PyString_Check (filepath)) {
-        PyErr_SetString (PyExc_RuntimeError, "File must be string or unicode");
+        PyErr_SetString (PyExc_TypeError, "");
         goto finish;
     }
     
     if ((mode = PyInt_AsLong (m)) == -1) {
         if (PyErr_Occurred ()) {
-            PyErr_SetString (PyExc_RuntimeError, "Mode must be a number");
+            PyErr_SetString (PyExc_TypeError, "");
             goto finish;
         }
     }
     
     if (PyUnicode_Check (filepath)) {
+        Py_BEGIN_ALLOW_THREADS
         GetFileSecurityW (PyUnicode_AS_UNICODE (filepath),
             requested_information, 0, 0, &dwSize);
         security_descriptor = (PSECURITY_DESCRIPTOR)malloc(dwSize);
         if (!GetFileSecurityW (PyUnicode_AS_UNICODE (filepath),
             requested_information, security_descriptor, dwSize, &dwSize)) {
+            Py_END_ALLOW_THREADS
             sprintf (exception_string, "FileSecurity: %d\n", GetLastError ());
             PyErr_SetString (PyExc_RuntimeError, exception_string);
             goto finish;
         }
+        Py_END_ALLOW_THREADS
     }
     else {
+        Py_BEGIN_ALLOW_THREADS
         GetFileSecurityA (PyString_AS_STRING (filepath),
             requested_information, 0, 0, &dwSize);
         security_descriptor = (PSECURITY_DESCRIPTOR)malloc(dwSize);
         if (!GetFileSecurityA (PyString_AS_STRING (filepath),
             requested_information, security_descriptor, dwSize, &dwSize)) {
+            Py_END_ALLOW_THREADS
             sprintf (exception_string, "FileSecurity: %d\n", GetLastError ());
             PyErr_SetString (PyExc_RuntimeError, exception_string);
             goto finish;
         }
+        Py_END_ALLOW_THREADS
     }
     
     if (!ImpersonateSelf (SecurityImpersonation)) {
@@ -103,18 +109,15 @@ winaccess (PyObject *self, PyObject *args)
     
 finish:
     RevertToSelf ();
-    if (security_descriptor) {
-      free (security_descriptor);
-    }
-    if (hToken != INVALID_HANDLE_VALUE) {
+    if (security_descriptor)
+        free (security_descriptor);
+    if (hToken != INVALID_HANDLE_VALUE)
         CloseHandle (hToken);
-    }
 
-    if (PyErr_Occurred()) {
+    if (PyErr_Occurred())
         return NULL;
-    } else {
-        return Py_BuildValue ("l", is_access_granted);
-    }
+    else
+        return PyBool_FromLong (is_access_granted);
 }
 
 static PyMethodDef extension_methods[] = {
