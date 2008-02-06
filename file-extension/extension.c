@@ -8,7 +8,7 @@
 #define W_OK 4
 
 static PyObject*
-windows_file_security (PyObject *self, PyObject *args)
+winaccess (PyObject *self, PyObject *args)
 {
     SECURITY_INFORMATION requested_information = DACL_SECURITY_INFORMATION |
         OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION;
@@ -25,15 +25,23 @@ windows_file_security (PyObject *self, PyObject *args)
     BOOL is_access_granted = FALSE;
   
     PyObject *filepath;
-    PyObject *mode;
+    PyObject *m;
+    long mode;
 	
-    if (!PyArg_UnpackTuple (args, "windows_file_security", 2, 2, &filepath, &mode)) {
+    if (!PyArg_UnpackTuple (args, "windows_file_security", 2, 2, &filepath, &m)) {
         goto finish;
     }
   
     if (!PyUnicode_Check (filepath) && !PyString_Check (filepath)) {
         PyErr_SetString (PyExc_RuntimeError, "File must be string or unicode");
         goto finish;
+    }
+    
+    if ((mode = PyInt_AsLong (m)) == -1) {
+        if (PyErr_Occurred ()) {
+            PyErr_SetString (PyExc_RuntimeError, "Mode must be a number");
+            goto finish;
+        }
     }
     
     if (PyUnicode_Check (filepath)) {
@@ -76,14 +84,18 @@ windows_file_security (PyObject *self, PyObject *args)
     mapping.GenericAll = FILE_ALL_ACCESS;
     
     access_desired = 0;
-    access_desired |= FILE_READ_DATA;
-    access_desired |= FILE_WRITE_DATA;
+    if (mode & X_OK)
+      access_desired |= FILE_EXECUTE;
+    if (mode & R_OK)
+      access_desired |= FILE_READ_DATA;
+    if (mode & W_OK)
+      access_desired |= FILE_WRITE_DATA;
 	  MapGenericMask (&access_desired, &mapping);
     
     if (!AccessCheck (
         security_descriptor, hToken, access_desired, &mapping, &privilege_set,
         &privilege_set_size, &access_granted, &is_access_granted)) {
-        
+
         sprintf (exception_string, "AccessCheck: %d\n", GetLastError ());
         PyErr_SetString (PyExc_RuntimeError, exception_string);
         goto finish;
@@ -106,7 +118,7 @@ finish:
 }
 
 static PyMethodDef extension_methods[] = {
-  {"windows_file_security", windows_file_security, METH_VARARGS, "Get windows file security"},
+  {"winaccess", winaccess, METH_VARARGS, "Get windows file security"},
   {NULL, NULL}
 };
 
