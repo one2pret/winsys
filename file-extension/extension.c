@@ -2,6 +2,11 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 
+#define F_OK 0
+#define X_OK 1
+#define R_OK 2
+#define W_OK 4
+
 static PyObject*
 windows_file_security (PyObject *self, PyObject *args)
 {
@@ -20,8 +25,9 @@ windows_file_security (PyObject *self, PyObject *args)
     BOOL is_access_granted = FALSE;
   
     PyObject *filepath;
+    PyObject *mode;
 	
-    if (!PyArg_UnpackTuple (args, "windows_file_security", 1, 1, &filepath)) {
+    if (!PyArg_UnpackTuple (args, "windows_file_security", 2, 2, &filepath, &mode)) {
         goto finish;
     }
   
@@ -42,8 +48,15 @@ windows_file_security (PyObject *self, PyObject *args)
         }
     }
     else {
-        PyErr_SetString (PyExc_RuntimeError, "Only working with unicode");
-        goto finish;
+        GetFileSecurityA (PyString_AS_STRING (filepath),
+            requested_information, 0, 0, &dwSize);
+        security_descriptor = (PSECURITY_DESCRIPTOR)malloc(dwSize);
+        if (!GetFileSecurityA (PyString_AS_STRING (filepath),
+            requested_information, security_descriptor, dwSize, &dwSize)) {
+            sprintf (exception_string, "FileSecurity: %d\n", GetLastError ());
+            PyErr_SetString (PyExc_RuntimeError, exception_string);
+            goto finish;
+        }
     }
     
     if (!ImpersonateSelf (SecurityImpersonation)) {
@@ -57,11 +70,14 @@ windows_file_security (PyObject *self, PyObject *args)
         goto finish;
     }
 
-    access_desired = FILE_ACCESS_READ;
-    mapping.GenericRead = 0; 
-    mapping.GenericWrite = 0;
-    mapping.GenericExecute = 0;
-    mapping.GenericAll = 0;
+    mapping.GenericRead = FILE_GENERIC_READ; 
+    mapping.GenericWrite = FILE_GENERIC_WRITE;
+    mapping.GenericExecute = FILE_GENERIC_EXECUTE;
+    mapping.GenericAll = FILE_ALL_ACCESS;
+    
+    access_desired = 0;
+    access_desired |= FILE_READ_DATA;
+    access_desired |= FILE_WRITE_DATA;
 	  MapGenericMask (&access_desired, &mapping);
     
     if (!AccessCheck (
@@ -85,7 +101,7 @@ finish:
     if (PyErr_Occurred()) {
         return NULL;
     } else {
-        return Py_BuildValue ("l", access_granted);
+        return Py_BuildValue ("l", is_access_granted);
     }
 }
 
