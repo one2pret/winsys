@@ -8,6 +8,19 @@
 #define W_OK 4
 
 static PyObject*
+test (PyObject *self, PyObject *args)
+{
+    PyUnicodeObject *po;
+    int mode;
+    if (!PyArg_ParseTuple (args, "Ui:test", &po, &mode)) {
+        PyErr_SetString (PyExc_TypeError, "PROBLEM");
+        return NULL;
+    }
+  
+    return Py_BuildValue ("i", mode);
+}
+
+static PyObject*
 winaccess (PyObject *self, PyObject *args)
 {
     SECURITY_INFORMATION requested_information = DACL_SECURITY_INFORMATION |
@@ -45,32 +58,26 @@ winaccess (PyObject *self, PyObject *args)
     }
     
     if (PyUnicode_Check (filepath)) {
-        Py_BEGIN_ALLOW_THREADS
         GetFileSecurityW (PyUnicode_AS_UNICODE (filepath),
             requested_information, 0, 0, &dwSize);
         security_descriptor = (PSECURITY_DESCRIPTOR)malloc(dwSize);
         if (!GetFileSecurityW (PyUnicode_AS_UNICODE (filepath),
             requested_information, security_descriptor, dwSize, &dwSize)) {
-            Py_END_ALLOW_THREADS
             sprintf (exception_string, "FileSecurity: %d\n", GetLastError ());
             PyErr_SetString (PyExc_RuntimeError, exception_string);
             goto finish;
         }
-        Py_END_ALLOW_THREADS
     }
     else {
-        Py_BEGIN_ALLOW_THREADS
         GetFileSecurityA (PyString_AS_STRING (filepath),
             requested_information, 0, 0, &dwSize);
         security_descriptor = (PSECURITY_DESCRIPTOR)malloc(dwSize);
         if (!GetFileSecurityA (PyString_AS_STRING (filepath),
             requested_information, security_descriptor, dwSize, &dwSize)) {
-            Py_END_ALLOW_THREADS
             sprintf (exception_string, "FileSecurity: %d\n", GetLastError ());
             PyErr_SetString (PyExc_RuntimeError, exception_string);
             goto finish;
         }
-        Py_END_ALLOW_THREADS
     }
     
     if (!ImpersonateSelf (SecurityImpersonation)) {
@@ -121,6 +128,7 @@ finish:
 }
 
 static PyMethodDef extension_methods[] = {
+  {"test", test, METH_VARARGS, "Test"},
   {"winaccess", winaccess, METH_VARARGS, "Get windows file security"},
   {NULL, NULL}
 };
