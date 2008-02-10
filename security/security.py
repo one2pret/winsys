@@ -1,5 +1,8 @@
+from __future__ import with_statement
 import os, sys
+import contextlib
 import fnmatch
+import re
 
 import win32security
 from win32security import *
@@ -19,48 +22,49 @@ def _set (object, attribute, value=None):
 
 def mask_as_string (mask, length=32):
   return "".join ("01"[bool (mask & (2 << i))] for i in range (length)[::-1])
-
-class Constants (object):
-  
-  class Constant (object):
-    def __init__ (self, lookup, pattern="*"):
-      self._lookup = lookup
-      self._pattern = pattern
-      
-    def __contains__ (self, key):
-      return key in self._lookup
     
+def mask_as_list (mask, length=32):
+  return [i for i in range (length) if ((2 << i) & mask)]
+
+class Constants (dict):
+  
+  class Constant (dict):
+    def __init__ (self, lookup, pattern="*"):
+      dict.__init__ (self, lookup)
+      self.pattern = pattern
+      
     def __getitem__ (self, key):
       try:
-        return self._lookup[str (key).lower ()]
+        return dict.__getitem__ (self, str (key).lower ())
       except KeyError:
-        return self._lookup[self._pattern.replace ("*", str (key)).lower ()]
+        return dict.__getitem__ (self, self.pattern.replace ("*", str (key)).lower ())
     
     def __getattr__ (self, key):
       return self[key]
+
+    def as_local_string (self, s):
+      if self.pattern:
+        print "looking for", self.pattern.replace ("*", r"(\w+)"), "in", s
+        return re.search (self.pattern.replace ("*", r"(\w+)"), s).group (1) 
+      else:
+        return s
     
-    def __repr__ (self):
-      return repr (self._lookup)
+    def as_ints (self, strings):
+      return (int (v) for k, v in self.items () if k in strings)
+      
+    def as_strings (self, number):
+      return (self.as_local_string (v) for k, v in self.items () if k.isdigit () and (int (k) & number))
+
+  def __init__ (self, *args, **kwargs):
+    dict.__init__ (self, *args, **kwargs)
     
-    def __str__ (self):
-      return str (self._lookup)
-  
-  def __init__ (self):
-    self.constants = {}
-    
-  def __repr__ (self):
-    return repr (self.constants)
-    
-  def __str__ (self):
-    return str (self.constants)
-  
-  def from_dict (self, name, dict, pattern="*"):
-    constants = self.constants.get (name, {})
-    for k, v in dict.items ():
+  def from_dict (self, name, mapping, pattern="*"):
+    constants = self.get (name, {})
+    for k, v in mapping.items ():
       constants[str (k).lower ()] = v
       constants[str (v).lower ()] = k
-    self.constants[name] = self.Constant (constants, pattern)
-    return self.constants[name]
+    self[name] = self.Constant (constants, pattern)
+    return self[name]
   
   def from_namespace (self, name, pattern="*", namespace=win32security):
     return self.from_list (name, fnmatch.filter (dir (namespace), pattern), pattern, namespace)
@@ -70,10 +74,7 @@ class Constants (object):
 
   def __getattr__ (self, key):
     return self[key]
-    
-  def __getitem__ (self, key):
-    return self.constants[key]
-    
+
 constants = Constants ()
 ACE_FLAGS = constants.from_list ("ace_flags", ["CONTAINER_INHERIT_ACE", "INHERIT_ONLY_ACE", "INHERITED_ACE", "NO_PROPAGATE_INHERIT_ACE", "OBJECT_INHERIT_ACE"])
 ACE_TYPES = constants.from_namespace ("ace_types", "*_ACE_TYPE")
@@ -195,6 +196,12 @@ class Privilege (_SecurityObject):
   def from_string (string):
     return Privilege (win32security.LookupPrivilegeValue ("", string))
 
+@contextlib.contextmanager
+def impersonate (user, password):
+  token = Account.from_name (user).logon (password).impersonate ()
+  yield token
+  token.unimpersonate ()
+
 class Token (_SecurityObject):
 
   TEMPLATE = """User: %(user)s
@@ -219,6 +226,9 @@ Statistics: %(statistics)s
   
   def as_string (self):
     return self.TEMPLATE % self._info
+    
+  def __repr__ (self):
+    return "<Token: %s>" % self.user
   
   def info (self, type):
     try:
@@ -264,7 +274,7 @@ Statistics: %(statistics)s
         self._info['source'] = None
       self._info['default_dacl'] = ACL (self.info ("DefaultDacl"))
       self._info['type'] = self.info ("Type")
-      ## FIXME self._info['impersonation_level'] = self.info ("ImpersonationLevel")
+      #~ self._info['impersonation_level'] = self.info ("ImpersonationLevel")
       self._info['session_id'] = self.info ("SessionId")
       self._info['statistics'] = self.info ("Statistics")
       _SecurityObject._update (self)
@@ -280,14 +290,21 @@ Statistics: %(statistics)s
     self._dirty = True
 
   def disable_privileges (self, privileges):
-    privs_to_enable = []
+    privs_to_disable = []
     for priv in privilege:
       try:
-        privs_to_enable.append (int (priv), 0)
+        privs_to_disable.append (int (priv), 0)
       except ValueError:
-        privs_to_enable.append (Privilege.from_string (priv).luid, 0)
-    win32security.AdjustTokenPrivileges (self.hToken, 0, privs_to_enable)
+        privs_to_disable.append (Privilege.from_string (priv).luid, 0)
+    win32security.AdjustTokenPrivileges (self.hToken, 0, privs_to_disable)
     self._dirty = True
+    
+  def impersonate (self):
+    win32security.ImpersonateLoggedOnUser (self.hToken)
+    return self
+    
+  def unimpersonate (self):
+    win32security.RevertToSelf ()
 
 class SID (_SecurityObject):
 
@@ -304,6 +321,9 @@ class SID (_SecurityObject):
 
   def __eq__ (self, other):
     return self._sid == other._sid
+    
+  def __repr__ (self):
+    return "<SID: %s>" % self.as_string ()
 
   def reset (self, sid):
     self._sid = sid
@@ -348,6 +368,16 @@ class Account (_SecurityObject):
       return r"%s\%s" % (self.domain, self.name)
     else:
       return self.name or str (self.sid)
+      
+  def logon (self, password):
+    hUser = win32security.LogonUser (
+      self.name,
+      self.domain,
+      password,
+      win32security.LOGON32_LOGON_NETWORK,
+      win32security.LOGON32_PROVIDER_DEFAULT
+    )
+    return Token (hUser)
   
   @staticmethod
   def from_name (account_name, system_name=""):
@@ -384,7 +414,8 @@ class ACE (_SecurityObject):
   def pyobject (self):
     return self._ace
   
-  def from_ace (self, ace):
+  @staticmethod
+  def from_ace (ace):
     (type, flags) = ace[0]
     if "object" in ACE_TYPES[type].lower ().split ("_"):
       mask, object_type, inherited_object_type, sid = ace[1:]
@@ -397,24 +428,18 @@ class ACE (_SecurityObject):
       return SACE (type, Account (sid), mask, flags, object_type, inherited_object_type)
   
   def as_tuple (self):
-    return self.type, self.account, self.mask
+    return self.type, self.trustee, self.access, self.flags
   
   def as_string (self):
-    rights = mask_as_string (self.mask)
-    return "%s %s %s" % (self.access, self.trustee, self.as_string (rights))
+    flags = " | ".join (constants.ace_flags.as_strings (self.flags))
+    access = ", ".join (str (i) for i in mask_as_list (self.access))
+    return "%s %s %s %s" % (self.type, self.trustee, access, flags)
   
   def reset (self, type, trustee, access, flags):
     self.type = ACE_TYPES[type]
-    (type, flags) = ace[0]
-    if type in [win32security.ACCESS_ALLOWED_ACE_TYPE, win32security.ACCESS_DENIED_ACE_TYPE, win32security.SYSTEM_AUDIT_ACE_TYPE]:
-      mask, sid = ace[1:]
-    else:
-      mask, object_type, inherited_object_type, sid = ace[1:]
-
-    self.type = self.TYPES[type]
-    self.mask = mask
-    self.account = Account (sid)
-    
+    self.trustee = trustee
+    self.access = access
+    self.flags = flags
     self._update ()
     
 class DACE (ACE):
@@ -441,8 +466,27 @@ class ACL (_SecurityObject):
     for i in range (len (self)):
       yield self[i]
     
-  def __getitem__ (self, key):
-    return self._ACE (self._acl.GetAce (key))
+  def __getitem__ (self, index):
+    if index < 0:
+      index = self._acl.GetAceCount () + index
+      print "index < 0; using", index
+    return self._ACE.from_ace (self._acl.GetAce (index))
+    
+  def __delitem__ (self, index):
+    if index < 0:
+      index = self._acl.GetAceCount () + index
+    self._acl.DeleteAce (index)
+    
+  def append (self, ace):
+    if ace.ace_type == ACE_TYPES.ACCESS_ALLOWED:
+      self._acl.AddAccessAllowedAce (win32security.ACL_REVISION, ace.access, ace.sid.pyobject ())
+    elif ace.ace_type == ACE_TYPES.ACCESS_DENIED:
+      self._acl.AddAccessDeniedAce (win32security.ACL_REVISION, ace.access, ace.sid.pyobject ())
+      
+  def pop (self):
+    ace = self[-1]
+    del self[-1]
+    return ace
 
   def reset (self, acl):
     self._acl = acl
@@ -455,7 +499,12 @@ class ACL (_SecurityObject):
     return self._acl
 
   def raw (self):
-    return buffer (self._acl)  
+    return buffer (self._acl)
+    
+  def from_aces (self, aces):
+    self._acl 
+    for ace in aces:
+      print "FIXME:", ace
 
 class DACL (ACL):
   _ACE = DACE
@@ -471,7 +520,7 @@ class Security (_SecurityObject):
 
   def __repr__ (self):
     self._update ()
-    return win32security.ConvertSecurityDescriptorToStringSecurityDescriptor (
+    return "<Security: %s>" % win32security.ConvertSecurityDescriptorToStringSecurityDescriptor (
       self.pyobject ().SECURITY_DESCRIPTOR, 
       win32security.SDDL_REVISION_1,
       -1
@@ -505,7 +554,7 @@ class Security (_SecurityObject):
         self.sacl = sacl
       else:
         self.sacl = SACL (sacl)
-        
+
     self._update ()
     
   def _update (self):
@@ -613,7 +662,7 @@ Group: %s
 DACL: 
   %s
 SACL: 
-%s""" % (
+  %s""" % (
   repr (self), 
   self.owner or "<Unknown>", 
   self.group or "<Unknown>", 
