@@ -9,6 +9,13 @@ from win32security import *
 import win32api
 import pywintypes
 
+#
+# General policy: accept either int or sequence of ints for
+# flag parameters. Store the resulting int. If outputting
+# as str, return "s1 | s2"; for repr, return int unless
+# something else seems better (eg access as bitmask)
+#
+
 PyHANDLE = type (pywintypes.HANDLE ())
 
 class x_security (Exception):
@@ -44,7 +51,6 @@ class Constants (dict):
 
     def as_local_string (self, s):
       if self.pattern:
-        print "looking for", self.pattern.replace ("*", r"(\w+)"), "in", s
         return re.search (self.pattern.replace ("*", r"(\w+)"), s).group (1) 
       else:
         return s
@@ -80,6 +86,7 @@ ACE_FLAGS = constants.from_list ("ace_flags", ["CONTAINER_INHERIT_ACE", "INHERIT
 ACE_TYPES = constants.from_namespace ("ace_types", "*_ACE_TYPE")
 DACE_TYPES = constants.from_namespace ("dace_types", "ACCESS_*_ACE_TYPE")
 SACE_TYPES = constants.from_namespace ("sace_types", "SYSTEM_*_ACE_TYPE")
+PRIVILEGE_ATTRIBUTES = constants.from_namespace ("privilege_attributes", "SE_PRIVILEGE_*")
 
 def symbol (name, pattern ="%s", namespace=win32security, uppercase=True):
   """Convert a -- possibly lowercase -- string to the corresponding
@@ -161,9 +168,11 @@ _Null = _SecurityObject ()
 
 class Privilege (_SecurityObject):
   
-  ATTRIBUTES = ["enabled", "enabled_by_default", "used_for_access"]
-  
   def __init__ (self, luid, attributes=None):
+    """attributes can either be an int (the result of or-ing
+    the different attributes you want) or a Python sequence of
+    those integers.
+    """
     _SecurityObject.__init__ (self)
     self.reset (luid, attributes)
     
@@ -180,13 +189,14 @@ class Privilege (_SecurityObject):
         self.name = self.description = "<Unknown>"
       else:
         raise
-    
-    self.attributes = set ()
-    if attributes:
-      for attribute in self.ATTRIBUTES:
-        name, value = symbol (attribute, "SE_PRIVILEGE_%s")
-        if value & attributes:
-          self.attributes.add (attribute)
+
+    try:
+      self.attributes = reduce (operator.or_, attributes)
+    except TypeError:
+      try:
+        self.attributes = int (attributes)
+      except TypeError:
+        raise x_security, "Privilege attributes must be sequence or int"
     self._update ()
 
   def as_string (self):
