@@ -48,6 +48,8 @@ def db_objects (sql_text):
   for type, name, table_affected in found:
     if name.startswith ("#") or name.startswith ("_") or name.startswith ("z"):
       continue
+    elif len (name) < 3:
+      continue
     else:
       yield type, name.strip ("[]"), table_affected
 
@@ -60,7 +62,6 @@ def release (db, sql_text, callback=None):
       output_statement = statement[:OUTPUT_WIDTH] + "..."
     else:
       output_statement = statement
-    #~ if callback: callback ("  -> %s" % output_statement.replace ("\n", " "))
     try:
       sql.execute_sql (db, sql_text)
     except sql.pyodbc.Error, (error_code, error_details):
@@ -108,7 +109,10 @@ def rescript_objects ((server, database, username, password), objects_affected, 
       connection_string = "%s:%s@%s" % (username, password, server)
     else:
       connection_string = server
+    if object_type == "trigger":
+      object_name = "%s!%s" % (table_affected.replace ("dbo.", ""), object_name)
     cmd = [scripter, connection_string, database, release_directory, "%s:%s" % (object_type, object_name)]
+    if callback: callback (" ".join (cmd))
     process = subprocess.Popen (cmd, shell=True, stdout=subprocess.PIPE)
     result = process.wait ()
     output = process.stdout.read ()
@@ -142,19 +146,19 @@ def commit_objects (filepaths, commit_message):
   Then commit the lot.
   """
   svn = pysvn.Client ()
-  commit_package = []
+  commit_package = set ()
   for filepath in filepaths:
     for change in svn.status (filepath):
       if change.text_status == pysvn.wc_status_kind.unversioned:
         svn.add (filepath)
-        commit_package.append (filepath)
+        commit_package.add (filepath)
       elif change.text_status == pysvn.wc_status_kind.modified:
-        commit_package.append (filepath)
+        commit_package.add (filepath)
       elif change.text_status == pysvn.wc_status_kind.missing:
         svn.remove (filepath)
-        commit_package.append (filepath)
+        commit_package.add (filepath)
   
-  svn.checkin (commit_package, commit_message)
+  svn.checkin (sorted (commit_package), commit_message)
 
 def main (directory, (server, database, username, password)):
   print "Working in", os.path.abspath (directory)
