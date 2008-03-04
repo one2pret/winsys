@@ -1,4 +1,5 @@
 import os, sys
+import shutil
 import _winreg
 
 if __name__ == '__main__':
@@ -20,3 +21,12 @@ if __name__ == '__main__':
     _winreg.REG_SZ, 
     '%s "%%1" %%*' % release_path
   )
+
+  scripter_path = os.path.join (os.environ['ProgramFiles'], "scripter")
+  try:
+    os.mkdir (scripter_path)
+  except WindowsError, error:
+    if not error.startswith ("[Error 183]"):
+      raise
+  
+  shutil.copy (os.path.join (release_dir, "scripter.exe"), scripter_path)

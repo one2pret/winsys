@@ -102,7 +102,11 @@ def rescript_objects ((server, database, username, password), objects_affected, 
   if not os.path.isdir (release_directory):
     raise Exception ("Release directory not found")
   
-  scripter = os.path.join (os.path.dirname (__file__), "scripter.exe")
+  this_path = os.path.dirname (sys.executable) if getattr (sys, "frozen", None) else os.path.dirname (__file__)
+  scripter = os.path.join (os.environ['ProgramFiles'], "scripter", "scripter.exe")
+  if not os.path.exists (scripter):
+    raise Exception ("Scripter not found at %s" % scripter)
+
   filenames = set ()
   for object_type, object_name, table_affected in objects_affected:
     if username:
@@ -112,7 +116,6 @@ def rescript_objects ((server, database, username, password), objects_affected, 
     if object_type == "trigger":
       object_name = "%s!%s" % (table_affected.replace ("dbo.", ""), object_name)
     cmd = [scripter, connection_string, database, release_directory, "%s:%s" % (object_type, object_name)]
-    if callback: callback (" ".join (cmd))
     process = subprocess.Popen (cmd, shell=True, stdout=subprocess.PIPE)
     result = process.wait ()
     output = process.stdout.read ()
@@ -120,6 +123,7 @@ def rescript_objects ((server, database, username, password), objects_affected, 
       released_filenames = output.splitlines ()
       filenames.update (os.path.normpath (f) for f in released_filenames)
     else:
+      if callback: callback ("Command line: %s" % " ".join (cmd))
       raise Exception (output)
   
   return filenames
