@@ -223,7 +223,8 @@ class ReleaseConfig (object):
     else:
       scripting_options = {}
     self.script_to = scripting_options.get ("script_to", "")
-    
+    self.comment_in = scripting_options.get ("comment_in", "release.txt")
+
     self._heat_call = None
     
   def heat_call (self):

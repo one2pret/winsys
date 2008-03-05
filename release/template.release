@@ -29,3 +29,4 @@
 ; tables, procedures, functions, triggers, views etc. under this.
 ;
 ; script_to = c:/work_in_progress/cas
+; comment_in = release.txt

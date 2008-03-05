@@ -5,7 +5,6 @@ import types
 import wx
 import wx.richtext as rt
 
-import pysvn
 import releaselib
 
 """
@@ -295,8 +294,17 @@ class Frame (wx.Frame):
           commit_summary = "Release package for HEAT #%d" % heat_call
         else:
           commit_summary = "Release package for %s" % self.directory.Value
-        commit_message = "%s\n\n%s" % (commit_summary, "\n".join (name for type, name, table in affected_objects))
-        releaselib.commit_objects (released_filenames, commit_message)
+        commit_summary += "\n\nObjects affected:\n  %s\n\n" % "\n  ".join (name for type, name, table in affected_objects)
+          
+        if self.config.comment_in:
+          comment_in_filename = os.path.join (self.directory.Value, self.config.comment_in)
+          try:
+            commit_summary += "---\n\n%s" % open (comment_in_filename).read ()
+          except IOError:
+            self.log ("Couldn't find %s. Ignoring." % comment_in_filename)
+
+        self.log ("\nCommit message:\n\n%s" % commit_summary)
+        releaselib.commit_objects (released_filenames, commit_summary)
 
     except:
       self.log_traceback ()
