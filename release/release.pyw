@@ -73,7 +73,7 @@ class Frame (wx.Frame):
     username_label = wx.StaticText (panel, label="Username")
     self.username = wx.TextCtrl (parent=panel, value="")
     password_label = wx.StaticText (panel, label="Password")
-    self.password = wx.TextCtrl (parent=panel, value="")
+    self.password = wx.TextCtrl (parent=panel, value="", style=wx.TE_PASSWORD)
     
     self.directory = wx.TextCtrl (parent=panel, value="")
     directory_button = wx.Button (panel, size=(24, 20), label="...")
