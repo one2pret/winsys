@@ -51,11 +51,7 @@ class Area (Entity):
   is_external = Field (Boolean)
   area_order = Field (Integer)
   in_area = ManyToMany ("Area")
-
-#~ class AreaAreas (Entity):
-  
-  #~ area = ManyToOne (Area)
-  #~ in_area = ManyToOne (Area)
+  churches = ManyToMany (Church)
 
 class Link (Entity):
   
@@ -64,9 +60,6 @@ class Link (Entity):
   link = Field (Unicode (150))
   sequence = Field (Integer)
 
-  def __repr__ (self):
-    return "<Link %d: %s>" % (self.sequence, self.subject)
-    
 class HDO (Entity):
   
   area = ManyToOne (Area)
@@ -101,7 +94,3 @@ class SearchScores (Entity):
   church = ManyToOne (Church)
   word = Field (Unicode (100))
   score = Field (Integer)
-
-if __name__ == '__main__':
-  setup_all ()
-  create_all ()
