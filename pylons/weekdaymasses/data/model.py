@@ -26,8 +26,8 @@ class Church (Entity):
   saturday_mass_times = Field (Unicode (100))
   sunday_mass_times = Field (Unicode (100))
   holy_day_of_obligation_mass_times = Field (Unicode (100))
-  latitude = Field (Number)
-  longitude = Field (Number)
+  latitude = Field (Numeric)
+  longitude = Field (Numeric)
   scale = Field (Integer)
   in_area = ManyToMany ('Area')
 
@@ -79,7 +79,29 @@ class WhatsNew (Entity):
   updated_on = Field (Date)
   text = Field (Text)
 
+class PostcodeCoords (Entity):
+  
+  area = ManyToOne (Area)
+  outcode = Field (Unicode (10))
+  os_x = Field (Integer)
+  os_y = Field (Integer)
+  latitude = Field (Numeric)
+  longitude = Field (Numeric)
+  
+class MotorwayChurches (Entity):
+  
+  church = ManyToOne (Church)
+  motorway = Field (Unicode (10))
+  junction = Field (Unicode (10))
+  distance = Field (Numeric)
+  notes = Field (Unicode (100))
+
+class SearchScores (Entity):
+  
+  church = ManyToOne (Church)
+  word = Field (Unicode (100))
+  score = Field (Integer)
+
 if __name__ == '__main__':
   setup_all ()
   create_all ()
-q
