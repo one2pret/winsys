@@ -1,0 +1,2 @@
+recursive-include weekdaymasses/public *
+recursive-include weekdaymasses/templates *
