@@ -1,9 +1,9 @@
 import os, sys
 from elixir import *
+options_defaults['shortnames'] = True
 
 DB_FILENAME = os.path.abspath ("masses.db")
 metadata.bind = "sqlite:///%s" % DB_FILENAME
-metadata.bind.echo = True
 
 class Day (Entity):
   
@@ -37,7 +37,7 @@ class Church (Entity):
   email = Field (Unicode (100))
   is_persistent_offender = Field (Boolean)
   last_updated_on = Field (Date)
-  in_area = ManyToMany ('Area')
+  areas = ManyToMany ('Area')
   mass_times = OneToMany ('MassTime')
 
 class MassTime (Entity):
@@ -60,9 +60,21 @@ class Area (Entity):
   is_external = Field (Boolean, required=True)
   area_order = Field (Integer)
   in_area = ManyToOne ("Area")
-  areas_in = OneToMany ("Area")
+  areas = OneToMany ("Area")
   churches = ManyToMany (Church)
-
+  
+  def all_areas (self):
+    areas = set (self.areas)
+    for area in self.areas:
+      areas.update (area.all_areas ())
+    return areas
+  
+  def all_churches (self):
+    churches = set (self.churches)
+    for area in self.all_areas ():
+      churches.updated (area.all_churches ())
+    return churches
+    
 class Link (Entity):
   
   subject = Field (Unicode (50))

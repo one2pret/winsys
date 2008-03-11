@@ -17,6 +17,9 @@ import model
 
 SOURCE_DB_NAME = "masses.mdb"
 
+def decimalise (string):
+  return None if string is None else Decimal (string.strip ())
+
 def populate_days (log=False):
   model.Day (code=u"K", name=u"Weekday")
   model.Day (code=u"U", name=u"Sunday")
@@ -82,8 +85,8 @@ def populate_churches (source_db, log=False):
       sunday_mass_times=church.SundayMassTimes,
       saturday_mass_times=church.SaturdayMassTimes,
       holy_day_of_obligation_mass_times=church.HDOMassTimes,
-      latitude=church.latitude,
-      longitude=church.longitude,
+      latitude=decimalise (church.latitude),
+      longitude=decimalise (church.longitude),
       scale=church.scale,
       email=church.email,
       is_persistent_offender=church.is_persistent_offender,
@@ -113,7 +116,7 @@ def populate_areas (source_db, log=False):
   in_areas = {}
   for area in sql.fetch_query (source_db, SELECT_SQL, ()):
     if log: print area.area.encode (sys.getdefaultencoding (), "ignore")
-    model.Area (
+    this_area = model.Area (
       code=utils.as_code (area.area),
       name=area.area,
       description=area.description,
@@ -124,68 +127,44 @@ def populate_areas (source_db, log=False):
       is_external=area.external,
       area_order=area.area_order
     )
-    in_areas.setdefault (area.area, set ()).add (area.in_area)
+    in_areas[this_area] = area.in_area
   model.session.flush ()
 
-  for area, in_areas in in_areas.items ():
-    model.Area.get_by (name=area).areas = (model.Area.get_by (name=in_area) for in_area in in_areas)
+  for area, in_area_name in in_areas.items ():
+    area.in_area = model.Area.get_by (name=in_area_name)
   model.session.flush ()
 
-def populate_church_areas (source_db, target_db, log=False):
+def populate_church_areas (source_db, log=False):
   SELECT_SQL = """
     SELECT
       ChurchId,
       Area
     FROM
       Church2Area
-  """
-  INSERT_SQL = """
-    INSERT INTO
-      church_areas
-    (
-      church_id,
-      in_area_id
-    )
-    SELECT
-      c.id,
-      a.id
-    FROM
-      areas AS a,
-      churches AS c
-    WHERE
-      c.id = ? AND
-      a.name = ?
+    ORDER BY
+      ChurchId,
+      Area
   """
   print "Populating church areas"
   for church2area in sql.fetch_query (source_db, SELECT_SQL, ()):
     if log: print str (church2area).encode (sys.getdefaultencoding (), "ignore")
-    database.execute (INSERT_SQL, church2area.asTuple ())
+    church = model.Church.get_by (id=church2area.ChurchId)
+    church.areas.append (model.Area.get_by (name=church2area.Area))
+  model.session.flush ()
 
-def populate_mass_times (source_db, target_db, log=False):
+def populate_mass_times (source_db, log=False):
   SELECT_SQL = "SELECT * FROM MassTimes"
-  INSERT_SQL = """
-    INSERT INTO
-      mass_times
-    (
-      church_id,
-      day,
-      hh24,
-      eve,
-      restrictions
-    )
-    VALUES
-    (
-      ?,
-      ?,
-      ?,
-      ?,
-      ?
-    )
-  """
   print "Populate mass times"
   for mass_time in sql.fetch_query (source_db, SELECT_SQL, ()):
     if log: print mass_time.ParishId, mass_time.Day.encode (sys.getdefaultencoding (), "ignore")
-    database.execute (INSERT_SQL, [x or "" for x in mass_time.asTuple ()])
+    model.MassTime (
+      church=model.Church.get_by (id=mass_time.ParishId),
+      day=model.Day.get_by (code=mass_time.Day),
+      hh24=mass_time.hh24,
+      eve=mass_time.eve,
+      restrictions=mass_time.restrictions
+    )
+  model.session.flush ()
 
 def populate_area_day_church_masses (log=False):
   SELECT_SQL = """
@@ -255,7 +234,7 @@ def populate_whats_new (source_db, log=False):
     )
   model.session.flush ()
 
-def populate_postcode_coords (source_db, target_db, log=False):
+def populate_postcode_coords (source_db, log=False):
   SELECT_SQL = """
     SELECT
       id,
@@ -267,42 +246,18 @@ def populate_postcode_coords (source_db, target_db, log=False):
     FROM
       Postcode_Lat_Long_Lookup
   """
-  INSERT_SQL = """
-    INSERT INTO
-      postcode_coords
-    (
-      id,
-      outcode,
-      os_x,
-      os_y,
-      latitude,
-      longitude
-    )
-    VALUES
-    (
-      ?,
-      ?,
-      ?,
-      ?,
-      ?,
-      ?
-    )
-  """
-  UPDATE_SQL = """
-    UPDATE
-      postcode_coords
-    SET
-      area_id = (
-        SELECT id
-        FROM areas
-        WHERE name = 'GB'
-      )
-  """
   print "Populate postcode coords"
   for row in sql.fetch_query (source_db, SELECT_SQL):
     if log: print row.postcode_outcode.encode (sys.getdefaultencoding (), "ignore")
-    database.execute (INSERT_SQL, row.asTuple ())
-  database.execute (UPDATE_SQL)
+    model.PostcodeCoords (
+      area=model.Area.get_by (name="GB"),
+      postcode_outcode=row.Postcode_outcode,
+      os_x=row.OS_X,
+      os_y=row.OS_Y,
+      latitude=row.Latitude,
+      longitude=row.Longitude
+    )
+  model.session.flush ()
 
 def populate_hdos (source_db, log=False):
   SELECT_SQL = """
@@ -475,6 +430,7 @@ def get_source_db (name=SOURCE_DB_NAME):
   return adodbapi.connect (";".join ("%s=%s" % (x, y) for (x, y) in dsn))
 
 if __name__ == '__main__':
+  print "Create structure"
   source_db = get_source_db (SOURCE_DB_NAME)
   if os.path.exists ("masses.db"): os.remove ("masses.db")
   model.setup_all (True)
@@ -485,10 +441,10 @@ if __name__ == '__main__':
     populate_whats_new (source_db)
     populate_churches (source_db)
     populate_motorways (source_db)
-    populate_areas (source_db, True)
-    #~ populate_church_areas (source_db, target_db)
-    #~ populate_mass_times (source_db, target_db)
-    #~ populate_postcode_coords (source_db, target_db)
+    populate_areas (source_db)
+    populate_church_areas (source_db)
+    populate_mass_times (source_db)
+    populate_postcode_coords (source_db, True)
     #~ populate_hdos (source_db, target_db)
     #~ populate_links (source_db, target_db)
     #~ populate_area_day_church_masses ()
