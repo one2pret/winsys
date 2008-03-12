@@ -1,15 +1,9 @@
-from __future__ import generators
 import os, sys
-import datetime
 from decimal import Decimal
-import re
-import string
 
 import adodbapi
 
-#~ import database
 import sql
-#~ import areas, days
 from distance import Distance
 import utils
 
@@ -166,57 +160,6 @@ def populate_mass_times (source_db, log=False):
     )
   model.session.flush ()
 
-def populate_area_day_church_masses (log=False):
-  SELECT_SQL = """
-    SELECT
-      ?, IFNULL (mti.day, '*'), cha.church_id, IFNULL (mti.hh24, '0000'), IFNULL (mti.eve, 0), IFNULL (mti.restrictions, '')
-    FROM
-      church_areas AS cha
-    LEFT OUTER JOIN mass_times AS mti ON
-      mti.church_id = cha.church_id
-    WHERE
-      cha.in_area_id = ?
-    UNION ALL SELECT ?, 'K', NULL, NULL, NULL, NULL FROM areas WHERE id = ? AND ifnull (weekday_website, '') > ''
-    UNION ALL SELECT ?, 'U', NULL, NULL, NULL, NULL FROM areas WHERE id = ? AND ifnull (sunday_website, '') > ''
-    UNION ALL SELECT ?, 'A', NULL, NULL, NULL, NULL FROM areas WHERE id = ? AND ifnull (saturday_website, '') > ''
-    UNION ALL SELECT ?, 'H', NULL, NULL, NULL, NULL FROM areas WHERE id = ? AND ifnull (holy_day_of_obligation_website, '') > ''
-  """
-  INSERT_SQL = """
-    INSERT INTO
-      area_day_church_masses
-    (
-      area_id,
-      day_code,
-      church_id,
-      hh24,
-      eve,
-      restrictions
-    )
-    VALUES (?, ?, ?, ?, ?, ?)
-  """
-
-  print "Populate flattened structure"
-  data = set ()
-  for this_area in database.select ("SELECT id FROM areas ORDER BY name"):
-    for sub_area_id in areas.areas_in (this_area.id):
-      rows = list (
-        database.select (
-          SELECT_SQL,
-          (
-            this_area.id, sub_area_id,
-            this_area.id, sub_area_id,
-            this_area.id, sub_area_id,
-            this_area.id, sub_area_id,
-            this_area.id, sub_area_id,
-          )
-        )
-      )
-      data.update ([tuple (row) for row in rows])
-
-  for datum in data:
-    if log: print str (datum).encode (sys.getdefaultencoding (), "ignore")
-    database.execute (INSERT_SQL, datum)
-
 def populate_whats_new (source_db, log=False):
   SELECT_SQL = """
     SELECT
@@ -270,31 +213,16 @@ def populate_hdos (source_db, log=False):
     FROM
       holy_days_of_obligation
   """
-  INSERT_SQL = """
-    INSERT INTO
-      hdos
-    (
-      id,
-      area_id,
-      name,
-      yyyymmdd,
-      notes
-    )
-    SELECT
-      ?,
-      a.id,
-      ?,
-      ?,
-      ?
-    FROM
-      areas AS a
-    WHERE
-      a.name = ?
-  """
   print "Populate HDOs"
   for row in sql.fetch_query (source_db, SELECT_SQL):
     if log: print row.Name.encode (sys.getdefaultencoding (), "ignore")
-    database.execute (INSERT_SQL, (row.ID, row.Name, row.Holy_day_date.strftime ("%Y%m%d"), row.Notes, row.Area))
+    model.HDO (
+      area=model.Area.get_by (name=row.Area),
+      name=row.Name,
+      yyyymmdd=row.Holy_day_date,
+      notes=row.Notes
+    )
+  model.session.flush ()
 
 def populate_motorways (source_db, log=False):
   SELECT_SQL = """
@@ -327,40 +255,27 @@ def populate_motorways (source_db, log=False):
     )
   model.session.flush ()
 
-def populate_links (source_db, target_db, log=False):
+def populate_links (source_db, log=False):
   SELECT_SQL = """
     SELECT
       ID,
-      [Subject Heading],
+      [Subject Heading] AS subject,
       Title,
       Link,
-      [Sort Order]
+      [Sort Order] AS sequence
     FROM
       [Useful Links]
-  """
-  INSERT_SQL = """
-    INSERT INTO
-      links
-    (
-      id,
-      subject,
-      title,
-      link,
-      sequence
-    )
-    VALUES
-    (
-      ?,
-      ?,
-      ?,
-      ?,
-      ?
-    )
   """
   print "Populate links"
   for row in sql.fetch_query (source_db, SELECT_SQL):
     if log: print row.Title
-    database.execute (INSERT_SQL, row.asTuple ())
+    model.Link (
+      subject=row.subject,
+      title=row.Title,
+      link=row.Link,
+      sequence=row.sequence
+    )
+  model.session.flush ()
     
 def populate_search_scores (log=False):
   SELECT_SQL1 = """
@@ -373,38 +288,13 @@ def populate_search_scores (log=False):
     FROM
       churches
   """
-  SELECT_SQL2 = """
-    SELECT DISTINCT
-      a.name
-    FROM
-      areas AS a
-    JOIN area_day_church_masses AS adcm ON
-      adcm.area_id = a.id
-    WHERE
-      adcm.church_id = ?
-  """
-  INSERT_SQL = """
-    INSERT INTO
-      search_scores
-    (
-      church_id,
-      word,
-      score
-    )
-    VALUES
-    (
-      ?,
-      ?,
-      ?
-    )
-  """
   print "Populate search scores"
-  for row in database.select (SELECT_SQL1):
+  for church in model.Church.query ():
     words = {}
-    words.setdefault (10, []).extend (utils.filter_search_words (row.name))
-    words.setdefault (10, []).extend (utils.filter_search_words (row.alias or ""))
-    words.setdefault (2, []).extend (utils.filter_search_words (row.address or ""))
-    for area in database.select (SELECT_SQL2, [row.id]):
+    words.setdefault (10, []).extend (utils.filter_search_words (church.name))
+    words.setdefault (10, []).extend (utils.filter_search_words (church.alias or ""))
+    words.setdefault (2, []).extend (utils.filter_search_words (church.address or ""))
+    for area in set (area for area, level in church.all_areas ()):
       words.setdefault (5, []).extend (utils.filter_search_words (area.name))
       
     scores = {}
@@ -414,11 +304,12 @@ def populate_search_scores (log=False):
           scores[word] += score
         else:
           scores[word] = score
+
+    if log: print repr (church.name), "=>", scores
+    for word, score  in scores.items ():
+      model.SearchScores (church=church, word=word, score=score)
       
-    if log: print repr (row.name), "=>", scores
-    database.executemany (INSERT_SQL, [(row.id, word, score) for word, score in scores.items ()])
-    #~ for word, score in scores.items ():
-      #~ database.execute (INSERT_SQL, [row.id, word, score])
+    model.session.flush ()
 
 def get_source_db (name=SOURCE_DB_NAME):
   dsn = [
@@ -435,21 +326,18 @@ if __name__ == '__main__':
   if os.path.exists ("masses.db"): os.remove ("masses.db")
   model.setup_all (True)
 
-  model.metadata.bind.echo = False
   try:
-    populate_areas (source_db)
-    populate_postcode_coords (source_db, True)
     populate_days (source_db)
+    populate_areas (source_db)
+    populate_postcode_coords (source_db)
     populate_whats_new (source_db)
     populate_churches (source_db)
     populate_motorways (source_db)
     populate_church_areas (source_db)
     populate_mass_times (source_db)
-    #~ populate_hdos (source_db, target_db)
-    #~ populate_links (source_db, target_db)
-    #~ populate_area_day_church_masses ()
-    #~ populate_search_scores ()
-
+    populate_hdos (source_db)
+    populate_links (source_db)
+    populate_search_scores ()
   finally:
     model.session.flush ()
     model.session.close ()

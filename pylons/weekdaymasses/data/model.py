@@ -40,10 +40,20 @@ class Church (Entity):
   areas = ManyToMany ('Area')
   mass_times = OneToMany ('MassTime')
   
+  def _full_name (self):
+    if self.alias:
+      return "%s (%s)" % (self.name, self.alias)
+    else:
+      return self.name
+  full_name = property (_full_name)
+  
   def all_areas (self):
     for area in self.areas:
       for next_area, next_level in area.tree_up (0):
         yield next_area, next_level
+  
+  def has_mass (self, day_code):
+    return any (mass for mass in self.mass_times if mass.day_code == day_code)
 
 class MassTime (Entity):
   
@@ -76,8 +86,9 @@ class Area (Entity):
         
   def tree_up (self, level=0):
     yield self, level
-    for next_area, next_level in self.in_area.tree_up (level+1):
-      yield next_area, next_level
+    if self.in_area:
+      for next_area, next_level in self.in_area.tree_up (level+1):
+        yield next_area, next_level
   
   def all_churches (self):
     churches = set ()
