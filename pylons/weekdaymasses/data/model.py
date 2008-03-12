@@ -39,6 +39,11 @@ class Church (Entity):
   last_updated_on = Field (Date)
   areas = ManyToMany ('Area')
   mass_times = OneToMany ('MassTime')
+  
+  def all_areas (self):
+    for area in self.areas:
+      for next_area, next_level in area.tree_up (0):
+        yield next_area, next_level
 
 class MassTime (Entity):
   
@@ -63,18 +68,23 @@ class Area (Entity):
   areas = OneToMany ("Area")
   churches = ManyToMany (Church)
   
-  def all_areas (self):
-    areas = set (self.areas)
-    for area in self.areas:
-      areas.update (area.all_areas ())
-    return areas
+  def tree (self, level=0):
+    yield self, level
+    for area_in in self.areas:
+      for next_area, next_level in area_in.tree (level+1):
+        yield next_area, next_level
+        
+  def tree_up (self, level=0):
+    yield self, level
+    for next_area, next_level in self.in_area.tree_up (level+1):
+      yield next_area, next_level
   
   def all_churches (self):
-    churches = set (self.churches)
-    for area in self.all_areas ():
-      churches.updated (area.all_churches ())
+    churches = set ()
+    for area, level in self.tree ():
+      churches.update (area.churches)
     return churches
-    
+
 class Link (Entity):
   
   subject = Field (Unicode (50))

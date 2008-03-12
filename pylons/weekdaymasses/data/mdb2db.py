@@ -250,12 +250,12 @@ def populate_postcode_coords (source_db, log=False):
   for row in sql.fetch_query (source_db, SELECT_SQL):
     if log: print row.postcode_outcode.encode (sys.getdefaultencoding (), "ignore")
     model.PostcodeCoords (
-      area=model.Area.get_by (name="GB"),
-      postcode_outcode=row.Postcode_outcode,
-      os_x=row.OS_X,
-      os_y=row.OS_Y,
-      latitude=row.Latitude,
-      longitude=row.Longitude
+      area=model.Area.get_by (name=u"GB"),
+      outcode=row.postcode_outcode,
+      os_x=row.os_x,
+      os_y=row.os_y,
+      latitude=row.latitude,
+      longitude=row.longitude
     )
   model.session.flush ()
 
@@ -437,14 +437,14 @@ if __name__ == '__main__':
 
   model.metadata.bind.echo = False
   try:
+    populate_areas (source_db)
+    populate_postcode_coords (source_db, True)
     populate_days (source_db)
     populate_whats_new (source_db)
     populate_churches (source_db)
     populate_motorways (source_db)
-    populate_areas (source_db)
     populate_church_areas (source_db)
     populate_mass_times (source_db)
-    populate_postcode_coords (source_db, True)
     #~ populate_hdos (source_db, target_db)
     #~ populate_links (source_db, target_db)
     #~ populate_area_day_church_masses ()
