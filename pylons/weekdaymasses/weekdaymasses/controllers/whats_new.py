@@ -15,7 +15,7 @@ class WhatsNewController(BaseController):
     def __init__ (self):
       self.updates = {}
       for row in model.WhatsNew.query ().order_by ("-updated_on")[:100]:
-        self.updates.setdefault (row.updated_on, []).append (row.text)
+        self.updates.setdefault (row.updated_on, []).append (row.linked_text ())
     
     def index (self, language):
       c.title = self.title

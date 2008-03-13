@@ -1,21 +1,20 @@
 from sqlalchemy.orm import scoped_session, sessionmaker
-from pylons import config
 import elixir
 
-Session = scoped_session (
-  sessionmaker (
-    autoflush=True,
-    transactional=True
-  )
-)
+# replace the elixir session with our own
+Session = scoped_session(sessionmaker(autoflush=True, transactional=True))
 elixir.session = Session
-elixir.options_defaults.update ({"shortnames" : True})
-  
-metadata = elixir.metadata
-metadata.bind = config['pylons.g'].default_engine
+elixir.options_defaults.update({
+    'shortnames': True
+})
 
-#~ def init_model (engine):
-  #~ metadata.bind = engine
-  
+# use the elixir metadata
+metadata = elixir.metadata
+
+# this will be called in config/environment.py
+def init_model(engine):
+    metadata.bind = engine
+
+# import your entities, and set them up
 from entities import *
-elixir.setup_all ()
+elixir.setup_all()

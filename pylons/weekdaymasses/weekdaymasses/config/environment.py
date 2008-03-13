@@ -7,6 +7,7 @@ from sqlalchemy import engine_from_config
 import weekdaymasses.lib.app_globals as app_globals
 import weekdaymasses.lib.helpers
 from weekdaymasses.config.routing import make_map
+from weekdaymasses import model
 
 def load_environment(global_conf, app_conf):
     """Configure the Pylons environment via the ``pylons.config``
@@ -33,5 +34,7 @@ def load_environment(global_conf, app_conf):
     # CONFIGURATION OPTIONS HERE (note: all config options will override
     # any Pylons config options)
     config['pylons.g'].default_engine = engine_from_config (config, "sqlalchemy.default.")
+    
+    model.init_model (config['pylons.g'].default_engine)
     #~ model.session.bind = config['pylons.g'].default_engine
     #~ model.metadata.bind = config['pylons.g'].default_engine

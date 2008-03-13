@@ -1,4 +1,5 @@
-#~ import os, sys
+import re
+
 from elixir import *
 options_defaults['shortnames'] = True
 
@@ -155,6 +156,7 @@ class WhatsNew (Entity):
   text = Field (Text, required=True)
 
   def linked_text (self):
+    text = self.text
     church_match = re.search (u"\[(.*)\]", self.text)
     if church_match:
       church_name = church_match.group (1)
@@ -163,11 +165,11 @@ class WhatsNew (Entity):
         kwargs = dict (name=name, alias=alias)
       else:
         kwargs = dict (name=church_name)
-      church = Church.filter_by (**kwargs).first ()
+      church = Church.query ().filter_by (**kwargs).first ()
       if church:
         for area, level in church.all_areas ():
-          link = "/areas/%s/
-          href = u'<a href="%s">%s</a>' % (link, churches.church_name (church))
+          link = "/en/area/%s/churches/%d#p%d" % (area.code, church.id, church.id)
+          href = u'<a href="%s">%s</a>' % (link, church.full_name)
           text = text.replace (u"[%s]" % church_name, href)
           break
         else:
@@ -175,7 +177,7 @@ class WhatsNew (Entity):
           text += u"<!-- No area found for church id %d -->" % church.id
       else:
         text = text.replace (u"[", u"").replace (u"]", u"")
-
+    return text
 
   def __repr__ (self):
     return "<%s: %s>" % (self.__class__.__name__, self.id)

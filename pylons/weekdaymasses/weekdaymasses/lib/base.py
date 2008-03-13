@@ -12,7 +12,7 @@ from pylons.templating import render
 
 import weekdaymasses.lib.helpers as h
 import weekdaymasses.model as model
-from weekdaymasses.model import Session
+from weekdaymasses import model
 
 class BaseController(WSGIController):
 
@@ -24,7 +24,7 @@ class BaseController(WSGIController):
         try:
           return WSGIController.__call__(self, environ, start_response)
         finally:
-          Session.remove ()
+          model.Session.remove ()
 
 # Include the '_' function in the public names
 __all__ = [__name for __name in locals().keys() if not __name.startswith('_') \

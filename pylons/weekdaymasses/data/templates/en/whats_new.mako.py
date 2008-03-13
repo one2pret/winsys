@@ -1,8 +1,8 @@
 from mako import runtime, filters, cache
 UNDEFINED = runtime.UNDEFINED
 _magic_number = 2
-_modified_time = 1205100336.03
-_template_filename=u'C:\\temp\\pylons\\weekdaymasses\\weekdaymasses\\templates/en/whats_new.mako'
+_modified_time = 1205417184.822
+_template_filename=u'C:\\work_in_progress\\python-projects\\pylons\\weekdaymasses\\weekdaymasses\\templates/en/whats_new.mako'
 _template_uri=u'/en/whats_new.mako'
 _template_cache=cache.Cache(__name__, _modified_time)
 _source_encoding=None
