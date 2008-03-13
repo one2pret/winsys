@@ -13,10 +13,9 @@ class WhatsNewController(BaseController):
     title = "What's New?"
     
     def __init__ (self):
-      query = model.Session.query (model.WhatsNew).order_by ("updated_on")
       self.updates = {}
-      for row in query:
-        self.updates.setdefault (row.updated_on, []).append (row.linked_text ())
+      for row in model.WhatsNew.query ().order_by ("-updated_on")[:100]:
+        self.updates.setdefault (row.updated_on, []).append (row.text)
     
     def index (self, language):
       c.title = self.title
