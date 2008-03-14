@@ -82,6 +82,30 @@ class Church (Entity):
       return getattr (self, "%s_mass_times" % day.name)
     except AttributeError:
       return u", ".join (str (mt) for mt in MassTime.query ().filter_by (church=self, day=day).order_by (["eve", "hh24"]).all ())
+      
+  def map_links (self):
+    map_links = []
+
+    if self.map_link:
+      map_links.append (("http://%s" % self.map_link, "Map link"))
+
+    if self.x_coord and self.y_coord:
+      map_links.append ((
+        u"http://www.streetmap.co.uk/streetmap.dll?g2m?X=%d&Y=%d&a=Y&z=%d" % (self.x_coord, self.y_coord, self.zoom_level),
+        "Streetmap link"
+      ))
+
+    if self.latitude and self.longitude and self.scale:
+      latitude = float (self.latitude)
+      longitude = float (self.longitude)
+      scale = float (self.scale)
+      map_href = u"http://www.multimap.com/map/browse.cgi?lat=%6.4f&lon=%6.4f&scale=%d&icon=x&mapsize=big" % (latitude, longitude, scale)
+      map_links.append ((map_href, "Multimap link"))
+      
+      gmap_href = u"http://maps.google.com?f=q&q=%s,%s&ll=%s,%s&ie=utf8&z=16&iwloc=addr&om=1" % (latitude, longitude, latitude, longitude)
+      map_links.append ((gmap_href, "Google Maps"))
+      
+    return map_links
 
 class MassTime (Entity):
   
