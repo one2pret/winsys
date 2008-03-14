@@ -3,6 +3,8 @@ import re
 from elixir import *
 options_defaults['shortnames'] = True
 
+from weekdaymasses.lib import utils
+
 __all__ = [
   'Day', 'Church', 'MassTime', 'Area', 'Link',
   'HDO', 'WhatsNew', 'PostcodeCoords', 'MotorwayChurches',
@@ -74,6 +76,13 @@ class Church (Entity):
   def has_mass (self, day_code):
     return any (mass for mass in self.mass_times if mass.day_code == day_code)
 
+  def daily_mass_times (self, day_code):
+    day = Day.get_by (code=day_code)
+    try:
+      return getattr (self, "%s_mass_times" % day.name)
+    except AttributeError:
+      return u", ".join (str (mt) for mt in MassTime.query ().filter_by (church=self, day=day).order_by (["eve", "hh24"]).all ())
+
 class MassTime (Entity):
   
   church = ManyToOne (Church, required=True)
@@ -84,6 +93,9 @@ class MassTime (Entity):
 
   def __repr__ (self):
     return "<%s: %s>" % (self.__class__.__name__, self.id)
+    
+  def __str__ (self):
+    return utils.hh24_to_hh12 (self.hh24, self.eve)
     
 class Area (Entity):
   

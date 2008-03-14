@@ -25,3 +25,26 @@ def formatted_date (date):
     suffix = u"th"
 
   return u"%s %d%s %s" % (date.strftime ("%A"), date.day, suffix, date.strftime ("%B %Y"))
+
+def hh24_to_hh12 (hh24, eve=None):
+  hrs = int (hh24[:2])
+  mins = int (hh24[2:])
+
+  if hrs < 12:
+    suffix = u"am"
+  elif hrs == 12 and mins == 0:
+    suffix = u" noon"
+    mins = None
+  else:
+    if hrs > 12:
+      hrs -= 12
+    suffix = u"pm"
+
+  if mins is None:
+    hh12 = u"%d%s" % (hrs, suffix)
+  else:
+    hh12 = u"%d.%02d%s" % (hrs, mins, suffix)
+  if eve:
+    return hh12 + u" (eve)"
+  else:
+    return hh12

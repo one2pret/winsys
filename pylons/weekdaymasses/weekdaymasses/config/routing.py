@@ -19,6 +19,7 @@ def make_map():
     # CUSTOM ROUTES HERE
 
     map.connect (":language", controller="root", language=None)
+    map.connect (":language/area/:area_code/churches/:church_id", controller="area", action="churches")
     map.connect (":language/:controller")
     map.connect(':controller/:action/:id')
     map.connect('*url', controller='template', action='view')

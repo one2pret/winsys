@@ -271,3 +271,7 @@ div#header, div#footer {
   margin-top : 1em;
   margin-bottom : 1em;
 }
+
+.highlight {
+  background-color : #ffff80;
+}
