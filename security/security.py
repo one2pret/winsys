@@ -2,6 +2,7 @@ from __future__ import with_statement
 import os, sys
 import contextlib
 import fnmatch
+import operator
 import re
 
 import win32security
@@ -14,6 +15,10 @@ import pywintypes
 # flag parameters. Store the resulting int. If outputting
 # as str, return "s1 | s2"; for repr, return int unless
 # something else seems better (eg access as bitmask)
+#
+# Have constructor accept friendly values; additional
+# constructor (from_...) to convert, eg, pySID or even
+# raw SID values.
 #
 
 PyHANDLE = type (pywintypes.HANDLE ())
@@ -33,6 +38,18 @@ def mask_as_string (mask, length=32):
 def mask_as_list (mask, length=32):
   return [i for i in range (length) if ((2 << i) & mask)]
 
+class K:
+  
+  def __init__ (self, s, n):
+    self.string = s
+    self.number = n
+    
+  def __repr__ (self):
+    return self.number
+  
+  def __str__ (self):
+    return self.string
+
 class Constants (dict):
   
   class Constant (dict):
@@ -48,6 +65,11 @@ class Constants (dict):
     
     def __getattr__ (self, key):
       return self[key]
+      
+    def from_number (self, number):
+      for k, v in self.items ():
+        if v == number:
+          return k
 
     def as_local_string (self, s):
       if self.pattern:
@@ -68,7 +90,7 @@ class Constants (dict):
     constants = self.get (name, {})
     for k, v in mapping.items ():
       constants[str (k).lower ()] = v
-      constants[str (v).lower ()] = k
+      #~ constants[str (v).lower ()] = k
     self[name] = self.Constant (constants, pattern)
     return self[name]
   
@@ -87,6 +109,7 @@ ACE_TYPES = constants.from_namespace ("ace_types", "*_ACE_TYPE")
 DACE_TYPES = constants.from_namespace ("dace_types", "ACCESS_*_ACE_TYPE")
 SACE_TYPES = constants.from_namespace ("sace_types", "SYSTEM_*_ACE_TYPE")
 PRIVILEGE_ATTRIBUTES = constants.from_namespace ("privilege_attributes", "SE_PRIVILEGE_*")
+PRIVILEGES = constants.from_namespace ("privileges", "SE_*_NAME")
 
 def symbol (name, pattern ="%s", namespace=win32security, uppercase=True):
   """Convert a -- possibly lowercase -- string to the corresponding
@@ -168,10 +191,11 @@ _Null = _SecurityObject ()
 
 class Privilege (_SecurityObject):
   
-  def __init__ (self, luid, attributes=None):
+  def __init__ (self, luid, attributes=0):
     """attributes can either be an int (the result of or-ing
     the different attributes you want) or a Python sequence of
-    those integers.
+    those integers. A luid is a 64-bit integer representing the
+    privilege in question.
     """
     _SecurityObject.__init__ (self)
     self.reset (luid, attributes)
@@ -291,25 +315,26 @@ Statistics: %(statistics)s
     
   def enable_privileges (self, privileges):
     privs_to_enable = []
-    for priv in privilege:
+    for priv in privileges:
       try:
-        privs_to_enable.append (int (priv), win32security.SE_PRIVILEGE_ENABLED)
+        privs_to_enable.append ((int (priv), win32security.SE_PRIVILEGE_ENABLED))
       except ValueError:
-        privs_to_enable.append (Privilege.from_string (priv).luid, win32security.SE_PRIVILEGE_ENABLED)
+        privs_to_enable.append ((Privilege.from_string (priv).luid, win32security.SE_PRIVILEGE_ENABLED))
     win32security.AdjustTokenPrivileges (self.hToken, 0, privs_to_enable)
     self._dirty = True
 
   def disable_privileges (self, privileges):
     privs_to_disable = []
-    for priv in privilege:
+    for priv in privileges:
       try:
-        privs_to_disable.append (int (priv), 0)
+        privs_to_disable.append ((int (priv), 0))
       except ValueError:
-        privs_to_disable.append (Privilege.from_string (priv).luid, 0)
+        privs_to_disable.append ((Privilege.from_string (priv).luid, 0))
     win32security.AdjustTokenPrivileges (self.hToken, 0, privs_to_disable)
     self._dirty = True
     
   def impersonate (self):
+    self._update ()
     win32security.ImpersonateLoggedOnUser (self.hToken)
     return self
     
@@ -401,7 +426,7 @@ class Account (_SecurityObject):
     
 class ACE (_SecurityObject):
 
-  def __init__ (self, type, trustee, access, flags=set (), object_type=None, inherited_object_type=None):
+  def __init__ (self, type, trustee, access, flags=0, object_type=None, inherited_object_type=None):
     """Construct a new ACE
     
     @param type String or number representing one of the *_ACE_TYPE constants
@@ -427,12 +452,13 @@ class ACE (_SecurityObject):
   @staticmethod
   def from_ace (ace):
     (type, flags) = ace[0]
-    if "object" in ACE_TYPES[type].lower ().split ("_"):
+    name = ACE_TYPES.from_number (type)
+    if "object" in name.lower ().split ("_"):
       mask, object_type, inherited_object_type, sid = ace[1:]
     else:
       mask, sid = ace[1:]
       object_type = inherited_object_type = None
-    if type in DACE_TYPES:
+    if type in DACE_TYPES.values ():
       return DACE (type, Account (sid), mask, flags, object_type, inherited_object_type)
     else:
       return SACE (type, Account (sid), mask, flags, object_type, inherited_object_type)
@@ -446,10 +472,13 @@ class ACE (_SecurityObject):
     return "%s %s %s %s" % (self.type, self.trustee, access, flags)
   
   def reset (self, type, trustee, access, flags):
-    self.type = ACE_TYPES[type]
+    self.type = type
     self.trustee = trustee
     self.access = access
-    self.flags = flags
+    try:
+      self.flags = int (flags)
+    except TypeError:
+      self.flags = reduce (operator.or_, flags)
     self._update ()
     
 class DACE (ACE):
@@ -511,11 +540,6 @@ class ACL (_SecurityObject):
   def raw (self):
     return buffer (self._acl)
     
-  def from_aces (self, aces):
-    self._acl 
-    for ace in aces:
-      print "FIXME:", ace
-
 class DACL (ACL):
   _ACE = DACE
   
