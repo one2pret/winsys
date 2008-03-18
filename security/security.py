@@ -40,6 +40,10 @@ def mask_as_list (mask, length=32):
   return [i for i in range (length) if ((2 << i) & mask)]
 
 class Constant (object):
+  """The Constant class is mimicking a conventional
+  integer constant but representing it as a string
+  if needs be. Not yet clear just how useful this
+  will be."""
   
   def __init__ (self, name, value):
     self.name = name
@@ -69,13 +73,33 @@ class Constants (dict):
     return self[attr]
   
   def update_from_dict (self, mapping):
-    self.update ((name, Constant (name, value)) for name, value in mapping.items ())
+    #~ self.update ((name, Constant (name, value)) for name, value in mapping.items ())
+    self.update (mapping.items ())
 
   def update_from_list (self, namespace, keys):
     return self.update_from_dict (dict ((key, getattr (namespace, key)) for key in keys))
 
   def update_from_namespace (self, namespace, pattern):
     return self.update_from_list (fnmatch.filter (dir (namespace), pattern), namespace)
+    
+  def names (self, patterns):
+    """From a list of patterns, return the matching names from the
+    list of constants. A single string is considered as though a
+    list of one.
+    """
+    if isinstance (patterns, basestring):
+      patterns = [patterns]
+    for name in self.keys ():
+      for pattern in patterns:
+        if fnmatch.fnmatch (name, pattern):
+          yield name
+  
+  def names_from_value (self, value, patterns=None):
+    """From a number representing the or-ing of several integer values,
+    work out which of the constants make up the number using the pattern
+    to filter the "classes" or constants present in the dataset.
+    """
+    return [name for name in self.names (patterns) if value & self[name]]
     
 const = Constants ()
 const.update_from_list (win32security, (i for i in dir (win32security) if i.isupper ()))
@@ -234,9 +258,9 @@ Statistics: %(statistics)s
     privs_to_enable = []
     for priv in privileges:
       try:
-        privs_to_enable.append ((int (priv), win32security.SE_PRIVILEGE_ENABLED))
+        privs_to_enable.append ((int (priv), const.SE_PRIVILEGE_ENABLED))
       except ValueError:
-        privs_to_enable.append ((Privilege.from_string (priv).luid, win32security.SE_PRIVILEGE_ENABLED))
+        privs_to_enable.append ((Privilege.from_string (priv).luid, const.SE_PRIVILEGE_ENABLED))
     win32security.AdjustTokenPrivileges (self.hToken, 0, privs_to_enable)
     self._dirty = True
 
