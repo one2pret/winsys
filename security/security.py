@@ -6,6 +6,7 @@ import operator
 import re
 
 import win32security
+import ntsecuritycon
 from win32security import *
 import win32api
 import pywintypes
@@ -38,132 +39,52 @@ def mask_as_string (mask, length=32):
 def mask_as_list (mask, length=32):
   return [i for i in range (length) if ((2 << i) & mask)]
 
-class K:
+class Constant (object):
   
   def __init__ (self, s, n):
     self.string = s
     self.number = n
     
   def __repr__ (self):
-    return self.number
+    return str (self.number)
   
   def __str__ (self):
     return self.string
+    
+  def __int__ (self):
+    return self.number
+    
+  def __or__ (self, other):
+    return int (self) | int (other)
+    
+  def __add__ (self, other):
+    return int (self) & int (other)
 
-class Constants (dict):
+class Constants (object):
+
+  def __init__ (self):
+    self._constants = dict ()
   
-  class Constant (dict):
-    def __init__ (self, lookup, pattern="*"):
-      dict.__init__ (self, lookup)
-      self.pattern = pattern
-      
-    def __getitem__ (self, key):
-      try:
-        return dict.__getitem__ (self, str (key).lower ())
-      except KeyError:
-        return dict.__getitem__ (self, self.pattern.replace ("*", str (key)).lower ())
-    
-    def __getattr__ (self, key):
-      return self[key]
-      
-    def from_number (self, number):
-      for k, v in self.items ():
-        if v == number:
-          return k
-
-    def as_local_string (self, s):
-      if self.pattern:
-        return re.search (self.pattern.replace ("*", r"(\w+)"), s).group (1) 
-      else:
-        return s
-    
-    def as_ints (self, strings):
-      return (int (v) for k, v in self.items () if k in strings)
-      
-    def as_strings (self, number):
-      return (self.as_local_string (v) for k, v in self.items () if k.isdigit () and (int (k) & number))
-
-  def __init__ (self, *args, **kwargs):
-    dict.__init__ (self, *args, **kwargs)
-    
-  def from_dict (self, name, mapping, pattern="*"):
-    constants = self.get (name, {})
-    for k, v in mapping.items ():
-      constants[str (k).lower ()] = v
-      #~ constants[str (v).lower ()] = k
-    self[name] = self.Constant (constants, pattern)
-    return self[name]
+  def __getitem__ (self, attr):
+    return self._constants[attr]
   
-  def from_namespace (self, name, pattern="*", namespace=win32security):
-    return self.from_list (name, fnmatch.filter (dir (namespace), pattern), pattern, namespace)
-    
-  def from_list (self, name, keys, pattern="*", namespace=win32security):
-    return self.from_dict (name, dict ((key, getattr (namespace, key)) for key in keys), pattern)
-
-  def __getattr__ (self, key):
-    return self[key]
-
-constants = Constants ()
-ACE_FLAGS = constants.from_list ("ace_flags", ["CONTAINER_INHERIT_ACE", "INHERIT_ONLY_ACE", "INHERITED_ACE", "NO_PROPAGATE_INHERIT_ACE", "OBJECT_INHERIT_ACE"])
-ACE_TYPES = constants.from_namespace ("ace_types", "*_ACE_TYPE")
-DACE_TYPES = constants.from_namespace ("dace_types", "ACCESS_*_ACE_TYPE")
-SACE_TYPES = constants.from_namespace ("sace_types", "SYSTEM_*_ACE_TYPE")
-PRIVILEGE_ATTRIBUTES = constants.from_namespace ("privilege_attributes", "SE_PRIVILEGE_*")
-PRIVILEGES = constants.from_namespace ("privileges", "SE_*_NAME")
-
-def symbol (name, pattern ="%s", namespace=win32security, uppercase=True):
-  """Convert a -- possibly lowercase -- string to the corresponding
-  numeric constant from a namespace, optionally uppercasing the string
-  first. This will typically be used to offer a friendlier list of
-  symbols rather than or-ing together long numeric constants. The
-  pattern offers a way of prefix/suffixing common constant names.
+  def __getattr__ (self, attr):
+    return self._constants[attr]
   
-  @param name The symbol whose numeric value is to be returned
-  @param pattern A pattern containing a %s which will be replaced by the name
-  @param namespace The namespace to be searched
-  @param uppercase Should the string be uppercased first?
-  @return (name, number) Numeric constant representing the string
-  """
-  #
-  # Check first for the trivial case where a number
-  # has been passed. This saves some work when working
-  # through a set of values, some or all of which might
-  # be numeric.
-  #
-  try:
-    int (name)
-  except ValueError:
-    if uppercase: name = name.upper ()
-    #
-    # First try to use the pattern; if that
-    # doesn't work, it's possible the caller
-    # has passed the full name, so try that.
-    #
-    try:
-      return pattern % name, getattr (namespace, pattern % name)
-    except AttributeError:
-      return name, getattr (namespace, name)
-  else:
-    return str (name), name
+  def update_from_dict (self, mapping):
+    for name, value in mapping.items ():
+      self._constants[name] = Constant (name, value)
 
-#
-# Example implementation of now-in-2.5 currying
-# functionality shamelessly copied from PEP 309.
-#
-class Partial (object):
+  def update_from_list (self, namespace, keys):
+    return self.update_from_dict (dict ((key, getattr (namespace, key)) for key in keys))
 
-  def __init__ (*args, **kw):
-    self = args[0]
-    self.fn, self.args, self.kw = (args[1], args[2:], kw)
+  def update_from_namespace (self, namespace, pattern):
+    return self.update_from_list (fnmatch.filter (dir (namespace), pattern), namespace)
+    
+const = Constants ()
+const.update_from_list (win32security, (i for i in dir (win32security) if i.isupper ()))
+const.update_from_list (ntsecuritycon, (i for i in dir (ntsecuritycon) if i.isupper ()))
 
-  def __call__ (self, *args, **kw):
-    if kw and self.kw:
-      d = self.kw.copy ()
-      d.update (kw)
-    else:
-      d = kw or self.kw
-    return self.fn (* (self.args + args), **d)
-        
 class _SecurityObject (object):
   
   def __init__ (self):
