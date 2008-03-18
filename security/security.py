@@ -41,18 +41,18 @@ def mask_as_list (mask, length=32):
 
 class Constant (object):
   
-  def __init__ (self, s, n):
-    self.string = s
-    self.number = n
+  def __init__ (self, name, value):
+    self.name = name
+    self.value = value
     
   def __repr__ (self):
-    return str (self.number)
+    return str (self.value)
   
   def __str__ (self):
-    return self.string
+    return self.name
     
   def __int__ (self):
-    return self.number
+    return int (self.value)
     
   def __or__ (self, other):
     return int (self) | int (other)
@@ -60,20 +60,16 @@ class Constant (object):
   def __add__ (self, other):
     return int (self) & int (other)
 
-class Constants (object):
+class Constants (dict):
 
-  def __init__ (self):
-    self._constants = dict ()
-  
-  def __getitem__ (self, attr):
-    return self._constants[attr]
+  def __init__ (self, *args, **kwargs):
+    dict.__init__ (self, *args, **kwargs)
   
   def __getattr__ (self, attr):
-    return self._constants[attr]
+    return self[attr]
   
   def update_from_dict (self, mapping):
-    for name, value in mapping.items ():
-      self._constants[name] = Constant (name, value)
+    self.update ((name, Constant (name, value)) for name, value in mapping.items ())
 
   def update_from_list (self, namespace, keys):
     return self.update_from_dict (dict ((key, getattr (namespace, key)) for key in keys))
