@@ -94,12 +94,19 @@ class Constants (dict):
         if fnmatch.fnmatch (name, pattern):
           yield name
   
-  def names_from_value (self, value, patterns=None):
+  def names_from_value (self, value, patterns):
     """From a number representing the or-ing of several integer values,
     work out which of the constants make up the number using the pattern
     to filter the "classes" or constants present in the dataset.
     """
     return [name for name in self.names (patterns) if value & self[name]]
+    
+  def name_from_value (self, value, patterns):
+    for name in self.names (patterns):
+      if self[name] == value:
+        return name
+    else:
+      raise KeyError, "No constant matching name %s and value %d" % (patterns, value)
     
 const = Constants ()
 const.update_from_list (win32security, (i for i in dir (win32security) if i.isupper ()))
@@ -367,6 +374,8 @@ class Account (_SecurityObject):
     
 class ACE (_SecurityObject):
 
+  ACE_FLAGS = ["CONTAINER_INHERIT_ACE", "INHERIT_ONLY_ACE", "INHERITED_ACE", "NO_PROPAGATE_INHERIT_ACE", "OBJECT_INHERIT_ACE"]
+  
   def __init__ (self, type, trustee, access, flags=0, object_type=None, inherited_object_type=None):
     """Construct a new ACE
     
@@ -393,13 +402,14 @@ class ACE (_SecurityObject):
   @staticmethod
   def from_ace (ace):
     (type, flags) = ace[0]
-    name = ACE_TYPES.from_number (type)
+    name = const.name_from_value (type, ["ACCESS_*_ACE_TYPE", "SYSTEM_*_ACE_TYPE"])
     if "object" in name.lower ().split ("_"):
       mask, object_type, inherited_object_type, sid = ace[1:]
     else:
       mask, sid = ace[1:]
       object_type = inherited_object_type = None
-    if type in DACE_TYPES.values ():
+    
+    if name not in const.names ("ACCESS_*_ACE_TYPE"):
       return DACE (type, Account (sid), mask, flags, object_type, inherited_object_type)
     else:
       return SACE (type, Account (sid), mask, flags, object_type, inherited_object_type)
@@ -408,9 +418,11 @@ class ACE (_SecurityObject):
     return self.type, self.trustee, self.access, self.flags
   
   def as_string (self):
-    flags = " | ".join (constants.ace_flags.as_strings (self.flags))
-    access = ", ".join (str (i) for i in mask_as_list (self.access))
-    return "%s %s %s %s" % (self.type, self.trustee, access, flags)
+    type = const.name_from_value (self.type, "ACCESS_*_ACE_TYPE")
+    flags = " | ".join (const.names_from_value (self.flags, self.ACE_FLAGS))
+    access = " | ".join (const.names_from_value (self.access, "FILE_*"))
+    #~ access = ", ".join (str (i) for i in mask_as_list (self.access))
+    return "%s %s %s %s" % (type, self.trustee, access, flags)
   
   def reset (self, type, trustee, access, flags):
     self.type = type
