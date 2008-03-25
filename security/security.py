@@ -183,6 +183,14 @@ def impersonate (user, password):
   token = Account.from_name (user).logon (password).impersonate ()
   yield token
   token.unimpersonate ()
+  
+@contextlib.contextmanager
+def privilege (privilege, token=None):
+  if token is None:
+    token = Token ()
+  token.enable_privileges ([privilege])
+  yield token
+  token.disable_privileges ([privilege])
 
 class Token (_SecurityObject):
 
@@ -229,17 +237,20 @@ Statistics: %(statistics)s
     if hToken:
       self.hToken = hToken
     else:
-      flags = win32security.TOKEN_READ
-      try:
-        self.hToken = win32security.OpenThreadToken (win32api.GetCurrentThread (), flags, True)
-      except win32security.error, (errno, errcontext, errmsg):
-        if errno == 1008: 
-          self.hToken = win32security.OpenProcessToken (win32api.GetCurrentProcess (), flags)
-        else:
-          raise
-
+      flags = win32security.TOKEN_READ | win32security.TOKEN_ADJUST_PRIVILEGES | win32security.TOKEN_QUERY
+      self.hToken = self.get_token (flags)
     self._update ()
-    
+  
+  @staticmethod
+  def get_token (flags):
+    try:
+      return win32security.OpenThreadToken (win32api.GetCurrentThread (), flags, True)
+    except win32security.error, (errno, errcontext, errmsg):
+      if errno == 1008: 
+        return win32security.OpenProcessToken (win32api.GetCurrentProcess (), flags)
+      else:
+        raise
+
   def _update (self):
     if self._dirty:
       self._info = {}
