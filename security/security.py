@@ -180,17 +180,17 @@ class Privilege (_SecurityObject):
 
 @contextlib.contextmanager
 def impersonate (user, password):
-  token = Account.from_name (user).logon (password).impersonate ()
+  token = Principal.from_name (user).logon (password).impersonate ()
   yield token
   token.unimpersonate ()
   
 @contextlib.contextmanager
-def privilege (privilege, token=None):
+def privileges (privileges, token=None):
   if token is None:
     token = Token ()
-  token.enable_privileges ([privilege])
+  token.enable_privileges (privileges)
   yield token
-  token.disable_privileges ([privilege])
+  token.disable_privileges (privileges)
 
 class Token (_SecurityObject):
 
@@ -255,12 +255,12 @@ Statistics: %(statistics)s
     if self._dirty:
       self._info = {}
       sid, attributes = self.info ("User")
-      self._info['user'] = Account (sid, attributes=attributes)
-      self._info['owner'] = Account (self.info ("Owner"))
-      self._info['groups'] = [Account (sid, attributes=attributes) for sid, attributes in self.info ("Groups")]
-      self._info['restricted_sids'] = [Account (sid, attributes=attributes) for sid, attributes in self.info ("RestrictedSids")]
+      self._info['user'] = Principal (sid, attributes=attributes)
+      self._info['owner'] = Principal (self.info ("Owner"))
+      self._info['groups'] = [Principal (sid, attributes=attributes) for sid, attributes in self.info ("Groups")]
+      self._info['restricted_sids'] = [Principal (sid, attributes=attributes) for sid, attributes in self.info ("RestrictedSids")]
       self._info['privileges'] = [Privilege (luid, attr) for (luid, attr) in self.info ("Privileges")]
-      self._info['primary_group'] = Account (self.info ("PrimaryGroup"))
+      self._info['primary_group'] = Principal (self.info ("PrimaryGroup"))
       try:
         self._info['source'] = self.info ("Source")
       except x_access_denied:
@@ -274,6 +274,8 @@ Statistics: %(statistics)s
     
   def enable_privileges (self, privileges):
     privs_to_enable = []
+    if isinstance (privileges, basestring):
+      privileges = [privileges]
     for priv in privileges:
       try:
         privs_to_enable.append ((int (priv), const.SE_PRIVILEGE_ENABLED))
@@ -336,7 +338,7 @@ class SID (_SecurityObject):
   def from_string (string):
     return SID (ConvertStringSidToSid (string))
 
-class Account (_SecurityObject):
+class Principal (_SecurityObject):
 
   def __init__ (self, sid, system_name="", attributes=None):
     self.reset (sid, system_name="", attributes=None)
@@ -352,7 +354,7 @@ class Account (_SecurityObject):
     self._update ()
 
   def __repr__ (self):
-    return r"<Account: %s [%s]>" % (self, self.sid)
+    return r"<Principal: %s [%s]>" % (self, self.sid)
 
   def pyobject (self):
     return self.sid.pyobject ()
@@ -376,12 +378,12 @@ class Account (_SecurityObject):
   @staticmethod
   def from_name (account_name, system_name=""):
     sid, domain, type = win32security.LookupAccountName (system_name, account_name)
-    return Account (sid, domain)
+    return Principal (sid, domain)
     
   @staticmethod
   def from_well_known (well_known, domain_name):
-    domain_sid = Account.from_name (domain_name).pyobject ()
-    return Account (win32security.CreateWellKnownSid (well_known, domain_sid))
+    domain_sid = Principal.from_name (domain_name).pyobject ()
+    return Principal (win32security.CreateWellKnownSid (well_known, domain_sid))
     
 class ACE (_SecurityObject):
 
@@ -391,7 +393,7 @@ class ACE (_SecurityObject):
     """Construct a new ACE
     
     @param type String or number representing one of the *_ACE_TYPE constants
-    @param trustee "domain\user" or Account instance representing the security principal
+    @param trustee "domain\user" or Principal instance representing the security principal
     @param access Bitmask
     @param flags Bitmask or Set of strings or numbers representing the AceFlags constants
     """
@@ -421,9 +423,9 @@ class ACE (_SecurityObject):
       object_type = inherited_object_type = None
     
     if name not in const.names ("ACCESS_*_ACE_TYPE"):
-      return DACE (type, Account (sid), mask, flags, object_type, inherited_object_type)
+      return DACE (type, Principal (sid), mask, flags, object_type, inherited_object_type)
     else:
-      return SACE (type, Account (sid), mask, flags, object_type, inherited_object_type)
+      return SACE (type, Principal (sid), mask, flags, object_type, inherited_object_type)
   
   def as_tuple (self):
     return self.type, self.trustee, self.access, self.flags
@@ -530,17 +532,17 @@ class Security (_SecurityObject):
     self.owner = self.group = self.dacl = self.sacl = None
     
     if owner:
-      if isinstance (owner, Account):
+      if isinstance (owner, Principal):
         self.owner = owner
       else:
-        self.owner = Account (owner)
+        self.owner = Principal (owner)
       
     if group:
-      if isinstance (group, Account):
+      if isinstance (group, Principal):
         self.group = group
       else:
-        self.group = Account (group)
-        
+        self.group = Principal (group)
+
     if dacl:
       if isinstance (dacl, DACL):
         self.dacl = dacl
