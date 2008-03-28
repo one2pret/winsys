@@ -1,4 +1,3 @@
-from __future__ import with_statement
 import os, sys
 import contextlib
 import fnmatch
@@ -11,18 +10,8 @@ from win32security import *
 import win32api
 import pywintypes
 
-#
-# General policy: accept either int or sequence of ints for
-# flag parameters. Store the resulting int. If outputting
-# as str, return "s1 | s2"; for repr, return int unless
-# something else seems better (eg access as bitmask)
-#
-# Have constructor accept friendly values; additional
-# constructor (from_...) to convert, eg, pySID or even
-# raw SID values.
-#
-
-PyHANDLE = type (pywintypes.HANDLE ())
+PySID = pywintypes.SIDType
+PyHANDLE = pywintypes.HANDLEType
 
 class x_security (Exception):
   pass
@@ -39,50 +28,20 @@ def mask_as_string (mask, length=32):
 def mask_as_list (mask, length=32):
   return [i for i in range (length) if ((2 << i) & mask)]
 
-class Constant (object):
-  """The Constant class is mimicking a conventional
-  integer constant but representing it as a string
-  if needs be. Not yet clear just how useful this
-  will be."""
-  
-  def __init__ (self, name, value):
-    self.name = name
-    self.value = value
-    
-  def __repr__ (self):
-    return str (self.value)
-  
-  def __str__ (self):
-    return self.name
-    
-  def __int__ (self):
-    return int (self.value)
-    
-  def __or__ (self, other):
-    return int (self) | int (other)
-    
-  def __add__ (self, other):
-    return int (self) & int (other)
-
 class Constants (dict):
 
-  def __init__ (self, *args, **kwargs):
-    dict.__init__ (self, *args, **kwargs)
+  def __getattr__ (self, attribute):
+    return self[attribute]
   
-  def __getattr__ (self, attr):
-    return self[attr]
-  
-  def update_from_dict (self, mapping):
-    #~ self.update ((name, Constant (name, value)) for name, value in mapping.items ())
-    self.update (mapping.items ())
+  @classmethod
+  def from_list (cls, keys, namespace=win32security):
+    return cls ((key, getattr (namespace, key)) for key in keys)
 
-  def update_from_list (self, namespace, keys):
-    return self.update_from_dict (dict ((key, getattr (namespace, key)) for key in keys))
-
-  def update_from_namespace (self, namespace, pattern):
-    return self.update_from_list (fnmatch.filter (dir (namespace), pattern), namespace)
+  @classmethod
+  def from_pattern (cls, pattern="*", excluded=[], namespace=win32security):
+    return cls.from_list ((key for key in dir (namespace) if fnmatch.fnmatch (key, pattern) and key not in excluded), namespace)
     
-  def names (self, patterns):
+  def names (self, patterns=["*"]):
     """From a list of patterns, return the matching names from the
     list of constants. A single string is considered as though a
     list of one.
@@ -94,23 +53,43 @@ class Constants (dict):
         if fnmatch.fnmatch (name, pattern):
           yield name
   
-  def names_from_value (self, value, patterns):
+  def names_from_value (self, value, patterns=["*"]):
     """From a number representing the or-ing of several integer values,
     work out which of the constants make up the number using the pattern
     to filter the "classes" or constants present in the dataset.
     """
     return [name for name in self.names (patterns) if value & self[name]]
     
-  def name_from_value (self, value, patterns):
+  def name_from_value (self, value, patterns=["*"]):
     for name in self.names (patterns):
       if self[name] == value:
         return name
     else:
       raise KeyError, "No constant matching name %s and value %d" % (patterns, value)
-    
-const = Constants ()
-const.update_from_list (win32security, (i for i in dir (win32security) if i.isupper ()))
-const.update_from_list (ntsecuritycon, (i for i in dir (ntsecuritycon) if i.isupper ()))
+
+ACE_FLAGS = Constants.from_list (["CONTAINER_INHERIT_ACE", "INHERIT_ONLY_ACE", "INHERITED_ACE", "NO_PROPAGATE_INHERIT_ACE", "OBJECT_INHERIT_ACE"])
+ACE_TYPES = Constants.from_pattern ("*_ACE_TYPE")
+DACE_TYPES = Constants.from_pattern ("ACCESS_*_ACE_TYPE")
+SACE_TYPES = Constants.from_pattern ("SYSTEM_*_ACE_TYPE")
+PRIVILEGE_ATTRIBUTES = Constants.from_pattern ("SE_PRIVILEGE_*")
+PRIVILEGES = Constants.from_pattern ("SE_*_NAME")
+WELL_KNOWN_SIDS = Constants.from_pattern ("Win*Sid")
+SE_OBJECT_TYPE = Constants.from_list ([
+  "SE_UNKNOWN_OBJECT_TYPE",
+  "SE_FILE_OBJECT",
+  "SE_SERVICE",
+  "SE_PRINTER",
+  "SE_REGISTRY_KEY",
+  "SE_LMSHARE",
+  "SE_KERNEL_OBJECT",
+  "SE_WINDOW_OBJECT",
+  "SE_DS_OBJECT",
+  "SE_DS_OBJECT_ALL",
+  "SE_PROVIDER_DEFINED_OBJECT",
+  "SE_WMIGUID_OBJECT",
+  "SE_REGISTRY_WOW64_32KEY"
+])
+SECURITY_INFORMATION = Constants.from_pattern ("*_SECURITY_INFORMATION")
 
 class _SecurityObject (object):
   
@@ -302,7 +281,7 @@ Statistics: %(statistics)s
   def unimpersonate (self):
     win32security.RevertToSelf ()
 
-class SID (_SecurityObject):
+class _SID (_SecurityObject):
 
   def __init__ (self, sid):
     _SecurityObject.__init__ (self)
@@ -319,7 +298,7 @@ class SID (_SecurityObject):
     return self._sid == other._sid
     
   def __repr__ (self):
-    return "<SID: %s>" % self.as_string ()
+    return "<_SID: %s>" % self.as_string ()
 
   def reset (self, sid):
     self._sid = sid
@@ -336,22 +315,24 @@ class SID (_SecurityObject):
   
   @staticmethod
   def from_string (string):
-    return SID (ConvertStringSidToSid (string))
+    return _SID (ConvertStringSidToSid (string))
 
 class Principal (_SecurityObject):
 
-  def __init__ (self, sid, system_name="", attributes=None):
-    self.reset (sid, system_name="", attributes=None)
+  def __init__ (self, account, system_name=None):
+    if isinstance (account, PySID):
+      account = _SID (account)
     
-  def reset (self, sid, system_name, attributes):
-    self.sid = SID (sid)
-    self.attributes = attributes
-    try:
-      self.name, self.domain, self.type = win32security.LookupAccountSid (system_name, sid)
-    except win32security.error, (errno, context, errmsg):
-      self.name = self.domain = ""
-      self.type = None
-    self._update ()
+    if account is None:
+      self.name = self.sid = self.domain = self.type = None
+    elif isinstance (account, _SID):
+      self.sid = account
+      self.name, self.domain, self.type = win32security.LookupAccountSid (system_name, self.sid.pyobject ())
+    elif isinstance (account, basestring):
+      self.name = account.split ("\\", 1)[-1]
+      self.sid, self.domain, self.type = win32security.LookupAccountName (system_name, account)
+    else:
+      raise x_security, "Principal must be a SID or a name"
 
   def __repr__ (self):
     return r"<Principal: %s [%s]>" % (self, self.sid)
@@ -375,15 +356,13 @@ class Principal (_SecurityObject):
     )
     return Token (hUser)
   
-  @staticmethod
-  def from_name (account_name, system_name=""):
-    sid, domain, type = win32security.LookupAccountName (system_name, account_name)
-    return Principal (sid, domain)
-    
-  @staticmethod
-  def from_well_known (well_known, domain_name):
-    domain_sid = Principal.from_name (domain_name).pyobject ()
-    return Principal (win32security.CreateWellKnownSid (well_known, domain_sid))
+  @classmethod
+  def from_well_known (cls, well_known, domain_name=None):
+    if domain_name:
+      domain_sid = cls.from_name (domain_name).pyobject ()
+    else:
+      domain_sid = None
+    return cls (win32security.CreateWellKnownSid (well_known, domain_sid))
     
 class ACE (_SecurityObject):
 
@@ -512,12 +491,50 @@ class DACL (ACL):
 class SACL (ACL):
   _ACE = SACE
 
+#
+# General policy: store as security.* objects rather
+# than as raw pywin32 objects.
+#
 class Security (_SecurityObject):
 
-  def __init__ (self, owner=None, group=None, dacl=None, sacl=None, inherit_handle=True):
+  DEFAULT_SECURITY_INFORMATION = \
+    SECURITY_INFORMATION.OWNER_SECURITY_INFORMATION | \
+    SECURITY_INFORMATION.GROUP_SECURITY_INFORMATION | \
+    SECURITY_INFORMATION.DACL_SECURITY_INFORMATION    
+  
+  def __init__ (
+    self, 
+    object=None,
+    object_type=SE_OBJECT_TYPE.SE_FILE_OBJECT, 
+    options=DEFAULT_SECURITY_INFORMATION,
+    inherit_handle=True
+  ):
+    """
+    @param object The name or the handle of the object whose security is to be retrieved
+    @param type One of the SE_OBJECT_TYPE enumeration
+    @param options A bitmask formed by combining the appropriate *_SECURITY_INFORMATION
+    constants. NB The SACL usually needs the SE_SECURITY_NAME privilege
+    enabled. For this reason it is not included in the defaults.
+    """
     _SecurityObject.__init__ (self)
-    self.reset (owner, group, dacl, sacl, inherit_handle)
-
+    self._sa = win32security.SECURITY_ATTRIBUTES ()
+    if object is None:
+      self.owner = None
+      self.group = None
+      self.dacl = None
+      self.sacl = None
+      self.inherit_handle = None
+    else:
+      if isinstance (object, PyHANDLE):
+        sd = GetSecurityInfo (object, object_type, options)
+      else:
+        sd = GetNamedSecurityInfo (object, object_type, options)      
+      self.owner = Principal (sd.GetSecurityDescriptorOwner ())
+      self.group = Principal (sd.GetSecurityDescriptorGroup ())
+      self.dacl = DACL (sd.GetSecurityDescriptorDacl ())
+      self.sacl = SACL (sd.GetSecurityDescriptorSacl ())
+      self.inherit_handle = inherit_handle
+  
   def __repr__ (self):
     self._update ()
     return "<Security: %s>" % win32security.ConvertSecurityDescriptorToStringSecurityDescriptor (
@@ -525,38 +542,7 @@ class Security (_SecurityObject):
       win32security.SDDL_REVISION_1,
       -1
     )
-    
-  def reset (self, owner, group, dacl, sacl, inherit_handle):
-    self._sa = win32security.SECURITY_ATTRIBUTES ()
-    self.inherit_handle = inherit_handle
-    self.owner = self.group = self.dacl = self.sacl = None
-    
-    if owner:
-      if isinstance (owner, Principal):
-        self.owner = owner
-      else:
-        self.owner = Principal (owner)
-      
-    if group:
-      if isinstance (group, Principal):
-        self.group = group
-      else:
-        self.group = Principal (group)
 
-    if dacl:
-      if isinstance (dacl, DACL):
-        self.dacl = dacl
-      else:
-        self.dacl = DACL (dacl)
-    
-    if sacl:
-      if isinstance (sacl, SACL):
-        self.sacl = sacl
-      else:
-        self.sacl = SACL (sacl)
-
-    self._update ()
-    
   def _update (self):
     if self._dirty:
       self._sa.bInheritHandle = self.inherit_handle
@@ -580,8 +566,8 @@ class Security (_SecurityObject):
     self._update ()
     return self._sa
     
-  @staticmethod
-  def from_security_descriptor (sd, inherit_handle=True):
+  @classmethod
+  def from_security_descriptor (cls, sd, inherit_handle=True):
     """Factory method to construct a Security object from a PySECURITY_DESCRIPTOR 
     object.
     
@@ -589,65 +575,27 @@ class Security (_SecurityObject):
     @param inherit_handle A flag indicating whether the handle is to be inherited
     @return a Security instance
     """
-    return Security (
-      owner=sd.GetSecurityDescriptorOwner (),
-      group=sd.GetSecurityDescriptorGroup (),
-      dacl=sd.GetSecurityDescriptorDacl (),
-      sacl=sd.GetSecurityDescriptorSacl (),
-      inherit_handle=inherit_handle
-    )
+    security = Cls ()
+    security.owner = Principal (sd.GetSecurityDescriptorOwner ())
+    security.group = Principal (sd.GetSecurityDescriptorGroup ())
+    security.dacl = DACL (sd.GetSecurityDescriptorDacl  ())
+    security.sacl = SACL (sd.GetSecurityDescriptorSacl ())
+    security.inherit_handle = inherit_handle
   
-  @staticmethod
-  def from_string (string):
+  @classmethod
+  def from_string (cls, sddl):
     """Factory method to construct a Security object from a string in
     Microsoft SDDL format.
     
     @param string A string in Microsoft SDDL format
     @return A Security instance
     """
-    return Security.from_security_descriptor (
+    return cls.from_security_descriptor (
       sd=win32security.ConvertStringSecurityDescriptorToSecurityDescriptor (
         string, 
         win32security.SDDL_REVISION_1
       )
     )
-    
-  @staticmethod
-  def from_object (object, type="file", options=["owner", "group", "dacl"]):
-    """Factory method to create a Security object from an existing Windows object.
-    By default this will assume a file object and will attempt to retrieve
-    all information.
-
-    @param object The name or the handle of the object whose security is to be retrieved
-    @param type Either one of the SE_*_OBJECT constants from win32security or
-      a string which represents the central portion of one of those constants
-      (eg "file", "pipe", "service")
-    @param options Either a bitmask formed by combining the appropriate *_SECURITY_INFORMATION
-      constants from win32security, or an iterable of those constants or an
-      iterable of strings each representing the first portion of those constants
-      (eg "owner", "dacl"). NB The SACL usually needs the SE_SECURITY_NAME privilege
-      enabled. For this reason it is not included in the defaults.
-    @return a Security instance
-    """
-    try:
-      object_type = int (type)
-    except ValueError:
-      object_type = getattr (win32security, "SE_" + type.upper () + "_OBJECT")
-
-    try:
-      flags = int (options)
-    except (TypeError, ValueError):
-      flags = 0
-      for option in options:
-        try:
-          flags |= option
-        except TypeError:
-          flags |= getattr (win32security, option.upper () + "_SECURITY_INFORMATION")
-
-    if isinstance (object, PyHANDLE):
-      return Security.from_security_descriptor (sd=GetSecurityInfo (object, object_type, flags))
-    else:
-      return Security.from_security_descriptor (sd=GetNamedSecurityInfo (object, object_type, flags))
 
   def as_string (self):
     def acl_as_string (acl, indent="  "):
