@@ -1,31 +1,26 @@
 #include <python.h>
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <sddl.h>
 
+#ifndef F_OK
 #define F_OK 0
+#endif
+#ifndef R_OK
+#define R_OK 4
+#endif
+#ifndef W_OK
+#define W_OK 2
+#endif
+#ifndef X_OK
 #define X_OK 1
-#define R_OK 2
-#define W_OK 4
-
-static PyObject*
-test (PyObject *self, PyObject *args)
-{
-    PyUnicodeObject *po;
-    int mode;
-    if (!PyArg_ParseTuple (args, "Ui:test", &po, &mode)) {
-        PyErr_SetString (PyExc_TypeError, "PROBLEM");
-        return NULL;
-    }
-  
-    return Py_BuildValue ("i", mode);
-}
+#endif
 
 static PyObject*
 winaccess (PyObject *self, PyObject *args)
 {
-    SECURITY_INFORMATION requested_information = DACL_SECURITY_INFORMATION |
-        OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION;
-    PSECURITY_DESCRIPTOR security_descriptor = NULL;
+    SECURITY_INFORMATION requested_information = OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION;
+    PSECURITY_DESCRIPTOR pSD = NULL;
     DWORD dwSize = 0;
     char exception_string[256];
     HANDLE hToken = INVALID_HANDLE_VALUE;
@@ -38,36 +33,25 @@ winaccess (PyObject *self, PyObject *args)
     BOOL is_access_granted = FALSE;
   
     PyObject *filepath;
-    PyObject *m;
     long mode;
 	
-    if (!PyArg_UnpackTuple (args, "winaccess", 2, 2, &filepath, &m)) {
-        goto finish;
-    }
-  
-    if (!PyUnicode_Check (filepath) && !PyString_Check (filepath)) {
-        PyErr_SetString (PyExc_TypeError, "");
-        goto finish;
-    }
-    
-    if ((mode = PyInt_AsLong (m)) == -1) {
-        if (PyErr_Occurred ()) {
-            PyErr_SetString (PyExc_TypeError, "");
-            goto finish;
-        }
+    if (!PyArg_ParseTuple (args, "Oi:winaccess", &filepath, &mode)) {
+        PyErr_SetString (PyExc_TypeError, "PROBLEM");
+        return NULL;
     }
     
     if (PyUnicode_Check (filepath)) {
         GetFileSecurityW (PyUnicode_AS_UNICODE (filepath),
             requested_information, 0, 0, &dwSize);
-        security_descriptor = (PSECURITY_DESCRIPTOR)malloc(dwSize);
+        pSD = (PSECURITY_DESCRIPTOR)malloc(dwSize);
         if (!GetFileSecurityW (PyUnicode_AS_UNICODE (filepath),
-            requested_information, security_descriptor, dwSize, &dwSize)) {
+            requested_information, pSD, dwSize, &dwSize)) {
             sprintf (exception_string, "FileSecurity: %d\n", GetLastError ());
             PyErr_SetString (PyExc_RuntimeError, exception_string);
             goto finish;
         }
     }
+    /*
     else {
         GetFileSecurityA (PyString_AS_STRING (filepath),
             requested_information, 0, 0, &dwSize);
@@ -79,21 +63,27 @@ winaccess (PyObject *self, PyObject *args)
             goto finish;
         }
     }
+    */
+    
+    if (!IsValidSecurityDescriptor (pSD)) {
+        PyErr_SetString (PyExc_OSError, "Security Descriptor is invalid");
+        goto finish;
+    }
     
     if (!ImpersonateSelf (SecurityImpersonation)) {
-        PyErr_SetString (PyExc_RuntimeError, "Unable to impersonate self");
+        PyErr_SetString (PyExc_OSError, "Unable to impersonate self");
         goto finish;
     }
     
     if (!OpenThreadToken (GetCurrentThread (), TOKEN_ALL_ACCESS, 
         TRUE, &hToken)) {
-        PyErr_SetString (PyExc_RuntimeError, "Unable to open thread token");
+        PyErr_SetString (PyExc_OSError, "Unable to open thread token");
         goto finish;
     }
 
-    mapping.GenericRead = FILE_GENERIC_READ; 
-    mapping.GenericWrite = FILE_GENERIC_WRITE;
-    mapping.GenericExecute = FILE_GENERIC_EXECUTE;
+    mapping.GenericRead = FILE_READ_DATA; 
+    mapping.GenericWrite = FILE_WRITE_DATA;
+    mapping.GenericExecute = FILE_EXECUTE;
     mapping.GenericAll = FILE_ALL_ACCESS;
     
     access_desired = 0;
@@ -103,10 +93,10 @@ winaccess (PyObject *self, PyObject *args)
       access_desired |= FILE_READ_DATA;
     if (mode & W_OK)
       access_desired |= FILE_WRITE_DATA;
-	  MapGenericMask (&access_desired, &mapping);
-    
+    MapGenericMask (&access_desired, &mapping);
+	   
     if (!AccessCheck (
-        security_descriptor, hToken, access_desired, &mapping, &privilege_set,
+        pSD, hToken, access_desired, &mapping, &privilege_set,
         &privilege_set_size, &access_granted, &is_access_granted)) {
 
         sprintf (exception_string, "AccessCheck: %d\n", GetLastError ());
@@ -116,11 +106,11 @@ winaccess (PyObject *self, PyObject *args)
     
 finish:
     RevertToSelf ();
-    if (security_descriptor)
-        free (security_descriptor);
+    if (pSD)
+        free (pSD);
     if (hToken != INVALID_HANDLE_VALUE)
         CloseHandle (hToken);
-
+    
     if (PyErr_Occurred())
         return NULL;
     else
@@ -128,7 +118,6 @@ finish:
 }
 
 static PyMethodDef extension_methods[] = {
-  {"test", test, METH_VARARGS, "Test"},
   {"winaccess", winaccess, METH_VARARGS, "Get windows file security"},
   {NULL, NULL}
 };
