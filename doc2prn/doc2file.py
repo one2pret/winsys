@@ -1,10 +1,10 @@
-"""doc2file - convert Word documents to printer files
+"""doc2file - convert a Word document to a pcl file
 
-Usage: python doc2file.py --in=[input path] --out=[output path] --ext=[output extension] --printer=[name of printer]
-(Defaults are: current directory, input directory, ps and postscript respectively)
+Usage: python doc2file.py --in=[input file] --out=[output file] --printer=[name of printer]
+(Defaults are: none, <input> + .prn and "cas" respectively)
 
 eg
-  python doc2file.py --in=c:/temp/doc --out=c:/temp/ps --printer=postscript --ext=ps
+  python doc2file.py --in=c:/temp/spec.doc --out=c:/temp/spec.prn --printer=cas
 """
 import os, sys
 import glob
@@ -15,9 +15,7 @@ import time
 import win32com.client
 import pythoncom
 
-import tempcopy
-
-def doc2file (word_filepath, printer_name, filepath, extension, debug=0):
+def doc2file (word_filepath, printer_name, filepath, debug=0):
   """doc2file - Convert one word document to a printer file.
   """
   word_filepath = os.path.abspath (word_filepath)
@@ -92,22 +90,18 @@ if __name__ == '__main__':
   parser = OptionParser ()
   parser.add_option (
     "-i", "--in",
-    action="store", type="string", dest="input_dir",
-    help="Original DOC directory", default="."
+    action="store", type="string", dest="input_filename",
+    help="Word doc filename", default="."
   )
   parser.add_option (
     "-o", "--out",
-    action="store", type="string", dest="output_dir",
-    help="Final PS directory"
-  )
-  parser.add_option (
-    "-x", "--ext",
-    action="store", type="string", dest="extension",
-    help="Extension of output files"
+    action="store", type="string", dest="output_filename",
+    help="PCL filename"
   )
   parser.add_option (
     "--printer",
     action="store", type="string", dest="printer",
+    default = "Cas",
     help="Printer to use"
   )
   parser.add_option (
@@ -117,9 +111,12 @@ if __name__ == '__main__':
   )
   (options, args) = parser.parse_args ()
 
-  input_dir = options.input_dir
-  output_dir = options.output_dir or options.input_dir
-  extension = options.extension
+  input_filename = options.input_filename
+  output_filename = options.output_filename
+  if output_filename is None:
+    path, filename = os.path.split (input_filename)
+    base, ext = os.path.splitext (filename)
+    output_filename = os.path.join (path, "%s.prn" % base)
   printer = options.printer
 
-  doc2file_directory (input_dir, output_dir, printer, extension, options.debug)
+  doc2file (input_filename, printer, output_filename, options.debug)
