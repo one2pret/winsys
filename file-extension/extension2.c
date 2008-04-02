@@ -20,7 +20,7 @@ static PyMethodDef extension_methods[] = {
 };
 
 PyMODINIT_FUNC
-initextension (void)
+initextension2 (void)
 {
-  Py_InitModule3("extension", extension_methods, "Extension docstring");
+  Py_InitModule3("extension2", extension_methods, "Extension docstring");
 }
