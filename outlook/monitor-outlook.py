@@ -44,7 +44,7 @@ def reload_reactors ():
   sorted_reactors = topological_sort.topological_sort (reactors.values (), orderings)
   for reactor in sorted_reactors:
     print "  ", reactor.name
-  return [r.process_message for r in sorted_reactors]
+  return [(r.filter, r.process_message) for r in sorted_reactors]
 
 def is_message_flagged (message):
   return message.Categories and MONITOR_FLAG in message.Categories
