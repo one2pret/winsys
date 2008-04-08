@@ -16,7 +16,8 @@ def watch (path_to_watch, hEvent):
   hChange = win32file.FindFirstChangeNotification (
     path_to_watch,
     0,
-    win32con.FILE_NOTIFY_CHANGE_FILE_NAME
+    win32con.FILE_NOTIFY_CHANGE_FILE_NAME |
+    win32con.FILE_NOTIFY_CHANGE_LAST_WRITE
   )
 
   #

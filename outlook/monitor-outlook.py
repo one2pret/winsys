@@ -24,7 +24,7 @@ def set_read (message):
 def reload_reactors ():
   print "Reloading reactors"
   reactors = []
-  for pyfile in glob.glob (os.path.join (REACTORS_DIR, "*.py")):
+  for pyfile in sorted (glob.glob (os.path.join (REACTORS_DIR, "*.py"))):
     module_name = os.path.basename (pyfile).split (".")[0]
     print "Loading reactor:", module_name
     pymodule = imp.load_source (module_name, pyfile)
