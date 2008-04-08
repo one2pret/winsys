@@ -1,5 +1,6 @@
 import re
 
+depends_on = []
 message_filter = None
 
 JUNK = [

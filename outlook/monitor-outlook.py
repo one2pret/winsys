@@ -11,6 +11,7 @@ import time
 import win32con
 import win32event
 
+import topological_sort
 import outlook
 import watch_dir
 
@@ -18,18 +19,34 @@ MONITOR_FLAG = "monitor-outlook"
 SLEEP_FOR_SECS = 10
 REACTORS_DIR = os.path.join (os.path.dirname (sys.modules[__name__].__file__), "reactors")
 
-def set_read (message):
-  message.Unread = False
+class Reactor (object):
+  
+  def __init__ (self, name, module):
+    self.name = name
+    self.process_message = getattr (module, "process_message")
+    self.filter = re.compile (getattr (module, "message_filter", "") or "")
+    self.depends_on = getattr (module, "depends_on", []) or []
 
 def reload_reactors ():
-  print "Reloading reactors"
-  reactors = []
+  print
+  print "Reloading reactors at", time.asctime ()
+  reactors = {}
+  orderings = []
   for pyfile in sorted (glob.glob (os.path.join (REACTORS_DIR, "*.py"))):
     module_name = os.path.basename (pyfile).split (".")[0]
-    print "Loading reactor:", module_name
+    print "  Loading reactor:", module_name
     pymodule = imp.load_source (module_name, pyfile)
-    reactors.append ((re.compile (pymodule.message_filter or ""), pymodule.process_message))
-  return reactors
+    reactors[pymodule] = Reactor (module_name, pymodule)
+  
+  dependencies = []
+  for reactor in reactors.values ():
+    for must_run_first in reactor.depends_on:
+      dependencies.append ((reactors[must_run_first], reactor))
+  return topological_sort.topological_sort (
+    reactors.values (),
+    orderings
+  )
+    
   
 def is_message_flagged (message):
   return message.Categories and MONITOR_FLAG in message.Categories

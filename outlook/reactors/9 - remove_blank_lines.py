@@ -1,5 +1,6 @@
 import re
 
+depends_on = ["remove_sig"]
 message_filter = None
 
 SUBBERS = [
