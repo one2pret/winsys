@@ -34,20 +34,18 @@ def reload_reactors ():
   orderings = []
   for pyfile in sorted (glob.glob (os.path.join (REACTORS_DIR, "*.py"))):
     module_name = os.path.basename (pyfile).split (".")[0]
-    print "  Loading reactor:", module_name
     pymodule = imp.load_source (module_name, pyfile)
-    reactors[pymodule] = Reactor (module_name, pymodule)
+    reactors[module_name] = Reactor (module_name, pymodule)
   
   dependencies = []
   for reactor in reactors.values ():
     for must_run_first in reactor.depends_on:
       dependencies.append ((reactors[must_run_first], reactor))
-  return topological_sort.topological_sort (
-    reactors.values (),
-    orderings
-  )
-    
-  
+  sorted_reactors = topological_sort.topological_sort (reactors.values (), orderings)
+  for reactor in sorted_reactors:
+    print "  ", reactor.name
+  return [r.process_message for r in sorted_reactors]
+
 def is_message_flagged (message):
   return message.Categories and MONITOR_FLAG in message.Categories
 
