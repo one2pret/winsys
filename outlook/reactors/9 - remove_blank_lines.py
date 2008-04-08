@@ -5,6 +5,7 @@ message_filter = None
 SUBBERS = [
   (re.compile (r"(\s*\r?\n){3,}", re.UNICODE), u"\n\n"),
   (re.compile (r"\s*[_-]*\s*$", re.UNICODE), u""),
+  (re.compile (r"[_-]+\s*\n\s*[_-]+", re.UNICODE), u"-----------------"),
   (re.compile (r"^\s+", re.UNICODE), u"")
 ]
 
