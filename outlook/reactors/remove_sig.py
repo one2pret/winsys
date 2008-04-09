@@ -19,7 +19,7 @@ JUNK = [
   u"Tim Golden Senior Analyst Programmer T: 020 7482 3000"
 ]
 
-JUNK_MATCHERS = [re.compile (u"\\s+".join (j.split ()), re.UNICODE) for j in JUNK]
+JUNK_MATCHERS = [re.compile (ur"(?:\s|>)+".join (j.split ()), re.UNICODE) for j in JUNK]
 
 def process_message (message):  
   for junk_matcher in JUNK_MATCHERS:

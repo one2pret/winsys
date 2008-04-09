@@ -68,7 +68,7 @@ def main (session):
       while True:
         for message in inbox:
           if message.Unread and not is_message_flagged (message):
-            print "Processing:", message.Subject
+            print "Processing:", message.Subject, "at", time.asctime ()
             for filter, reactor in reactors:
               if filter.search (message.Subject):
                 if reactor (message):
