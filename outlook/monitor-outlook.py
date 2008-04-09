@@ -34,14 +34,17 @@ def reload_reactors ():
   orderings = []
   for pyfile in sorted (glob.glob (os.path.join (REACTORS_DIR, "*.py"))):
     module_name = os.path.basename (pyfile).split (".")[0]
-    pymodule = imp.load_source (module_name, pyfile)
-    reactors[module_name] = Reactor (module_name, pymodule)
+    try:
+      pymodule = imp.load_source (module_name, pyfile)
+      reactors[module_name] = Reactor (module_name, pymodule)
+    except:
+      print "  *** UNABLE TO LOAD", module_name, "***"
   
   dependencies = []
   for reactor in reactors.values ():
     for must_run_first in reactor.depends_on:
       dependencies.append ((reactors[must_run_first], reactor))
-  sorted_reactors = topological_sort.topological_sort (reactors.values (), orderings)
+  sorted_reactors = list (topological_sort.sort (reactors.values (), orderings))
   for reactor in sorted_reactors:
     print "  ", reactor.name
   return [(r.filter, r.process_message) for r in sorted_reactors]
@@ -58,12 +61,12 @@ def unflag_message (message):
   message.Categories = tuple (c for c in (message.Categories or ()) if c <> MONITOR_FLAG)
 
 def main (session):
+  inbox = outlook.inbox (session)
   reactors = reload_reactors ()
+  
   hEvent = win32event.CreateEvent (None, 0, 0, "monitor-outlook")
   threading.Thread (target=watch_dir.watch, args=(REACTORS_DIR, hEvent)).start ()
   try:
-    inbox = outlook.inbox (session)
-
     try:
       while True:
         for message in inbox:
