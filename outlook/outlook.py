@@ -1,6 +1,8 @@
 import os, sys
+import _winreg
 
 import win32com.client
+import winerror
 
 #
 # Do enough to ensure constants are available
@@ -78,20 +80,30 @@ def default_profile ():
 
   Return the user's default profile or a blank string
   """
-  default_profile = reg.Value (
-    reg.HKCU,
-    ['Software', 'Microsoft', 'Windows NT', 'CurrentVersion', 'Windows Messaging Subsystem', 'Profiles'],
-    'DefaultProfile'
-  )
-  if not default_profile:
-    default_profile = reg.Value (
-      reg.HKCU,
-      ['Software', 'Microsoft', 'Windows Messaging Subsystem', 'Profiles'],
-      'DefaultProfile'
+  HKCU = _winreg.HKEY_CURRENT_USER
+  try:
+    hProfiles = _winreg.OpenKey (
+      HKCU, 
+      r"Software\Microsoft\Windows NT\CurrentVersion\Windows Messaging Subsystem\Profiles"
     )
-  if not default_profile:
-    default_profile = ""
-  return default_profile
+    value, _ = _winreg.QueryValueEx (hProfiles, "DefaultProfile")
+    return value
+  except WindowsError, (errno, errmsg):
+    if errno <> winerror.ERROR_FILE_NOT_FOUND:
+      raise
+  
+  try:
+    hProfiles = _winreg.OpenKey (
+      HKCU, 
+      r"Software\Microsoft\Windows Messaging Subsystem\Profiles"
+    )
+    value, _ = _winreg.QueryValueEx (hProfiles, "DefaultProfile")
+    return value
+  except WindowsError, (errno, errmsg):
+    if errno <> winerror.ERROR_FILE_NOT_FOUND:
+      raise
+  
+  return ""
 
 def inbox (session_to_use=None):
   return Folder (session (session_to_use).Inbox)

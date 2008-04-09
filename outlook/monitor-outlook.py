@@ -87,5 +87,5 @@ def main (session):
     win32event.PulseEvent (hEvent)
 
 if __name__ == '__main__':
-  session = outlook.session ()
+  session = outlook.session (outlook.default_profile ())
   main (session)
