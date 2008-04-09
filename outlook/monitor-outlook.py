@@ -34,6 +34,10 @@ class Reactor (object):
     self.process_message = getattr (module, "process_message")
     self.filter = re.compile (getattr (module, "message_filter", "") or "")
     self.depends_on = getattr (module, "depends_on", []) or []
+    
+    init = getattr (module, "init", None)
+    if init:
+      init ()
 
 def reload_reactors ():
   print
