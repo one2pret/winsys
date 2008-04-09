@@ -3,6 +3,7 @@ import _winreg
 
 import win32com.client
 import winerror
+from pywintypes import com_error
 
 #
 # Do enough to ensure constants are available

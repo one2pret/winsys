@@ -4,8 +4,8 @@ def sort (items, partial_order):
      items is a list of items to be sorted.
      partial_order is a list of pairs. If pair (a,b) is in it, it means
      that item a should appear before item b.
-     Returns a list of the items in one of the possible orders, or None
-     if partial_order contains a loop.
+     Returns a list of the items in one of the possible orders, or raises
+     an exception if partial_order contains a loop.
   """
   graph = dict ((node, [0]) for node in items)
   for a, b in partial_order:

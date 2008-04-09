@@ -23,5 +23,5 @@ JUNK_MATCHERS = [re.compile (ur"(?:\s|>)+".join (j.split ()), re.UNICODE) for j 
 
 def process_message (message):  
   for junk_matcher in JUNK_MATCHERS:
-    message.Text = junk_matcher.sub ("", message.Text.replace (u"\xff", u" "))
+    message.Text = junk_matcher.sub ("", message.Text)
   return False

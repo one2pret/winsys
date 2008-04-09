@@ -19,6 +19,14 @@ MONITOR_FLAG = "monitor-outlook"
 SLEEP_FOR_SECS = 10
 REACTORS_DIR = os.path.join (os.path.dirname (sys.modules[__name__].__file__), "reactors")
 
+def get_real_com_errno (error_info):
+  hresult_code, hresult_name, additional_info, parameter_in_error = error_info
+  if additional_info:
+    wcode, source_of_error, error_description, whlp_file, whlp_context, scode = additional_info
+    return scode
+  else:
+    return None
+  
 class Reactor (object):
   
   def __init__ (self, name, module):
@@ -50,15 +58,24 @@ def reload_reactors ():
   return [(r.filter, r.process_message) for r in sorted_reactors]
 
 def is_message_flagged (message):
-  return message.Categories and MONITOR_FLAG in message.Categories
+  try:
+    value = message.Fields[MONITOR_FLAG]
+  except outlook.com_error, error_info:
+    if get_real_com_errno (error_info) == -2147221233:
+      return False
+    else:
+      raise
+  else:
+    return value
 
-def flag_message (message):
-  categories = set (message.Categories or ())
-  categories.add (MONITOR_FLAG)
-  message.Categories = tuple (categories)
+def flag_message (message, setting=True):
+  if is_message_flagged (message):
+    message.Fields[MONITOR_FLAG] = setting
+  else:
+    message.Fields.Add (MONITOR_FLAG, outlook.constants.vbBoolean, setting)
 
 def unflag_message (message):
-  message.Categories = tuple (c for c in (message.Categories or ()) if c <> MONITOR_FLAG)
+  flag_message (message, False)
 
 def main (session):
   inbox = outlook.inbox (session)
@@ -71,7 +88,7 @@ def main (session):
       while True:
         for message in inbox:
           if message.Unread and not is_message_flagged (message):
-            print "Processing:", message.Subject, "at", time.asctime ()
+            print "Processing:", message.Subject[:80], "at", time.asctime ()
             for filter, reactor in reactors:
               if filter.search (message.Subject):
                 if reactor (message):
