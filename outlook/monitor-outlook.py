@@ -7,6 +7,7 @@ import imp
 import re
 import threading
 import time
+import traceback
 
 import win32con
 import win32event
@@ -53,6 +54,7 @@ def reload_reactors ():
         reactors[module_name] = Reactor (module_name, pymodule)
       except:
         print "  *** UNABLE TO LOAD", module_name, "***"
+        traceback.print_exc ()
   
   dependencies = []
   for reactor in reactors.values ():

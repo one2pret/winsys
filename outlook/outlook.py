@@ -28,6 +28,19 @@ class Folder (object):
       yield message
       message = messages.GetNext ()
       
+class Collection (object):
+  def __init__ (self, collection):
+    self._collection = collection
+  def __getattr__ (self, attribute):
+    return getattr (self._collection, attribute)
+  def __iter__ (self):
+    n_item = 1
+    while n_item <= self._collection.Count:
+      yield self._collection.Item (n_item)
+      n_item += 1
+  def __len__ (self):
+    return self._collection.Count
+
 def session (profile="", fallback_to_dialog=1):
   """session - return a logged-on CDO session.
 
