@@ -13,4 +13,3 @@ SUBBERS = [
 def process_message (message):
   for (look_for, replace_by) in SUBBERS:
     message.Text = look_for.sub (replace_by, message.Text)
-  return False

@@ -10,6 +10,7 @@ import time
 
 import win32con
 import win32event
+import win32file
 
 import topological_sort
 import outlook
@@ -45,12 +46,13 @@ def reload_reactors ():
   reactors = {}
   orderings = []
   for pyfile in sorted (glob.glob (os.path.join (REACTORS_DIR, "*.py"))):
-    module_name = os.path.basename (pyfile).split (".")[0]
-    try:
-      pymodule = imp.load_source (module_name, pyfile)
-      reactors[module_name] = Reactor (module_name, pymodule)
-    except:
-      print "  *** UNABLE TO LOAD", module_name, "***"
+    if not (win32file.GetFileAttributes (pyfile) & win32file.FILE_ATTRIBUTE_HIDDEN):
+      module_name = os.path.basename (pyfile).split (".")[0]
+      try:
+        pymodule = imp.load_source (module_name, pyfile)
+        reactors[module_name] = Reactor (module_name, pymodule)
+      except:
+        print "  *** UNABLE TO LOAD", module_name, "***"
   
   dependencies = []
   for reactor in reactors.values ():
@@ -95,8 +97,7 @@ def main (session):
             print "Processing:", message.Subject[:80], "at", time.asctime ()
             for filter, reactor in reactors:
               if filter.search (message.Subject):
-                if reactor (message):
-                  break
+                reactor (message)
             flag_message (message)
             message.Update ()
 
