@@ -45,7 +45,6 @@ def reload_reactors ():
   print
   print "Reloading reactors at", time.asctime ()
   reactors = {}
-  orderings = []
   for pyfile in sorted (glob.glob (os.path.join (REACTORS_DIR, "*.py"))):
     if not (win32file.GetFileAttributes (pyfile) & win32file.FILE_ATTRIBUTE_HIDDEN):
       module_name = os.path.basename (pyfile).split (".")[0]
@@ -60,7 +59,7 @@ def reload_reactors ():
   for reactor in reactors.values ():
     for must_run_first in reactor.depends_on:
       dependencies.append ((reactors[must_run_first], reactor))
-  sorted_reactors = list (topological_sort.sort (reactors.values (), orderings))
+  sorted_reactors = list (topological_sort.sort (reactors.values (), dependencies))
   for reactor in sorted_reactors:
     print "  ", reactor.name
   return [(r.filter, r.process_message) for r in sorted_reactors]
