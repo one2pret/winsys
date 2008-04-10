@@ -8,6 +8,7 @@ import sql
 
 import outlook
 
+depends_on = ["remove_blank_lines", "remove_sig"]
 message_filter = re.compile (r"\bHEAT:")
 
 ATTACHMENTS_FOLDER = r"\\gb.vo.local\files\IT\IT\temp\heat-attachments"
@@ -94,10 +95,18 @@ def update_attachments (call_id, message):
         filed_attachments.append ((attachment.Name, attachment_filepath))    
     write_attachments (call_id, filed_attachments)
 
+def useful_text (message):
+  #
+  # This is the hard part: try to pick out the part of the
+  # message which is new. For the purposes of experimentation,
+  # consider everything up to the first run of 5 dashes or underscores.
+  #
+  return re.match (r"^(.*)([_-]{5,})?", message.Text, re.UNICODE).group (1).strip ()
+
 def create_new_call (message):
   sender = unicode (message.Sender.Name).encode ("utf8")
   subject = unicode (message.Subject).encode ("utf8")
-  text = unicode (message.Text).encode ("utf8")
+  text = unicode (useful_text (message)).encode ("utf8")
 
   q = db.cursor ()
   q.execute ("""EXECUTE pr_create_new_call
@@ -114,13 +123,7 @@ def create_new_call (message):
   send_acknowledgement (call_id, message)
   
 def update_old_call (call_id, message):
-  #
-  # This is the hard part: try to pick out the part of the
-  # message which is new. For the purposes of experimentation,
-  # consider everything up to the first run of 5 dashes or underscores.
-  #
-  useful_text = re.match ("^(.*)([_-]{5,})?", message.Text).group (1).strip ()
-  journal_text = "%s emailed:\r\n\r\n%s" % (message.Sender.Name, useful_text)
+  journal_text = "%s emailed:\r\n\r\n%s" % (message.Sender.Name, useful_text (message))
   journal_text = journal_text.strip ().encode ("utf8")
   call_id  = call_id.encode ("utf8")
   
