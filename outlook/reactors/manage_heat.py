@@ -17,10 +17,12 @@ ACK_TEXT = """Your email has been entered into our Helpdesk system and has a ref
 
 Please quote the reference number above when requesting further assistance with this job.
 
-Whilst you are awaiting a response, please check the IT Tips pages on the Intranet . If you manage to resolve your problem, please let us know.
+Whilst you are awaiting a response, please check the IT Tips pages on the Intranet. 
+If you manage to resolve your problem, please let us know.
 
-Regards
-IT Helpdesk
+------------------------------------------------------------------------------------------
+
+%(text)s
 """
 
 db = None
@@ -30,13 +32,13 @@ def init ():
   #~ db = pyodbc_connection ("VOREPORTS", "HEAT", "heat", "heat", autocommit=True)
   
 def send_acknowledgement (call_id, message):
+  text = message.Text
   outlook.send (
     message.Session,
     [message.Sender.Name], 
     "RE: %s [%s]" % (message.Subject, call_id),
     ACK_TEXT % locals ()
   )
-  print "Sent to", message.Sender.Name
 
 def read_attachments (call_id):  
   q = db.cursor ()
@@ -54,7 +56,7 @@ def write_attachments (call_id, attachments):
   ini.set ("Info", "NumAttachments", str (len (attachments)))
   ini.add_section ("Attachments")
   for n_attachment, attachment in enumerate (attachments):
-    ini.set ("Attachments", "Attachment%d" % n_attachment, "|".join (attachment))
+    ini.set ("Attachments", "Attachment%d" % (1 + n_attachment), "|".join (attachment))
   
   q = db.cursor ()
   q.execute (u"DELETE FROM heat.HEATGen WHERE GCode = 'AT' AND GName = ?", [call_id])
@@ -82,18 +84,27 @@ def ini_to_text (ini):
   return ofile.read ()
 
 def update_attachments (call_id, message):
+  def find_unique_filename (folder, filename):
+    n = 1
+    base, ext = os.path.splitext (filename)
+    while os.path.exists (os.path.join (folder, filename)):
+      filename = "%s-%d%s" % (base, n, ext)
+      n += 1
+    return os.path.join (folder, filename)
+
   attachments_folder = os.path.join (ATTACHMENTS_FOLDER, call_id)
   attachments = outlook.Collection (message.Attachments)
   if attachments:
-    filed_attachments = []
+    call_attachments = list (read_attachments (call_id))
     for attachment in attachments:
       if attachment.Type == outlook.constants.CdoFileData:
         if not os.path.exists (attachments_folder):
           os.mkdir (attachments_folder)
-        attachment_filepath = os.path.join (attachments_folder, attachment.Name)
+        attachment_filepath = find_unique_filename (attachments_folder, attachment.Name)
         attachment.WriteToFile (attachment_filepath)
-        filed_attachments.append ((attachment.Name, attachment_filepath))    
-    write_attachments (call_id, filed_attachments)
+        call_attachments.append ((attachment.Name, attachment_filepath))
+    
+    write_attachments (call_id, call_attachments)
 
 def useful_text (message):
   #
