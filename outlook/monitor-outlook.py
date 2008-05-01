@@ -114,4 +114,8 @@ def main (session):
 
 if __name__ == '__main__':
   session = outlook.session (outlook.default_profile ())
-  main (session)
+  try:
+    main (session)
+  finally:
+    session.Logoff ()
+    del session
