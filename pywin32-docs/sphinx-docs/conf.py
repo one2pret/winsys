@@ -35,7 +35,7 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General substitutions.
-project = 'Python on Windows documentation'
+project = 'Python on Windows'
 copyright = '2008, Tim Golden'
 
 # The default replacements for |version| and |release|, also used in various
@@ -125,7 +125,7 @@ html_last_updated_fmt = '%b %d, %Y'
 #html_file_suffix = ''
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'Python on Windows documentationdoc'
+htmlhelp_basename = 'python-on-windows'
 
 
 # Options for LaTeX output
@@ -140,7 +140,7 @@ htmlhelp_basename = 'Python on Windows documentationdoc'
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title, author, document class [howto/manual]).
 latex_documents = [
-  ('index', 'Python on Windows.tex', 'Python on Windows Documentation', 'Tim Golden', 'manual'),
+  ('index', 'python-on-windows.tex', 'Python on Windows Documentation', 'Tim Golden', 'manual'),
 ]
 
 # The name of an image file (relative to this directory) to place at the top of
