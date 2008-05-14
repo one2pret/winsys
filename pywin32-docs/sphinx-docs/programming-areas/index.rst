@@ -15,4 +15,4 @@ self-contained examples.
 .. toctree::
    :maxdepth: 2
    
-   registry/index
+   registry
