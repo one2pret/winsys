@@ -122,4 +122,4 @@ More Examples
 
 .. toctree::
 
-   walk-the-registry
+   registry/walk-the-registry
