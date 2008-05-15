@@ -13,6 +13,6 @@ and what the pros and cons are of each one, illustrated by useful and
 self-contained examples.
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
    
    registry
