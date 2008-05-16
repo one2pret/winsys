@@ -16,7 +16,7 @@ os.walk function, yielding the current location, keys and values.
 The code
 --------
 
-.. literalinclude:: registry_walker.py
+.. literalinclude:: walk_the_registry.py
 
 -----
 Notes
