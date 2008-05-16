@@ -20,15 +20,28 @@ def write_value (keypath, value_name=None, value=None, datatype=None):
   
   _winreg.SetValueEx (key, value_name, 0, datatype, value)
 
+
+
 if __name__ == '__main__':
   import struct
+  import pickle
   
+  #
+  # Just create the key
+  #
   key_name = r"HKEY_CURRENT_USER\Software\PySoft\PyThing"
   write_value (key_name)
   
+  #
+  # Create the key if needed and write various data items
+  #
   key_name = r"HKEY_CURRENT_USER\Software\PySoft\PyApp"
   write_value (key_name, "owner", "pysoft.co.uk")
   write_value (key_name, "version", struct.pack ("f", 1.2), _winreg.REG_BINARY)
+  write_value (key_name, "dump", pickle.dumps (object ()), _winreg.REG_BINARY)
 
+  #
+  # Create the key and populate the default value
+  #
   key_name = r"HKEY_CURRENT_USER\Software\PySoft\PyTool"
   write_value (key_name, "", "Tool for doing things with Python")

@@ -39,8 +39,11 @@ def walk (top, writeable=False):
     for result in walk (top.rstrip ("\\") + "\\" + subkey, writeable):
       yield result
 
+
+
 if __name__ == '__main__':
-  for (key_name, key), subkey_names, values in walk (r"HKEY_CURRENT_USER\Console"):
+  keypath = r"HKEY_CURRENT_USER\Software\PySoft"
+  for (key_name, key), subkey_names, values in walk (keypath):
     level = key_name.count ("\\")
     print " " * level, key_name
     for name, data, datatype in values:
