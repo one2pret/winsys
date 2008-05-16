@@ -1,6 +1,6 @@
-======================
-Accessing the Registry
-======================
+============
+The Registry
+============
 
 ------------
 Introduction

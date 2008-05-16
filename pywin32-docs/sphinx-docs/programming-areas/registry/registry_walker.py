@@ -1,33 +1,20 @@
 import _winreg
 
-class RegKey:
-
-  def __init__ (self, name, key):
-    self.name = name
-    self.key = key
-
-  def __str__ (self):
-    return self.name
-
-def walk (top, topdown=True):
+def walk (top, writeable=False):
   """walk the registry starting from the key represented by
   top in the form HIVE\\key\\subkey\\..\\subkey and generating
-  key, subkey_names, values at each level.
+  (key_name, key), subkey_names, values at each level.
 
-  key is a lightly wrapped registry key, including the name
-  and the HKEY object.
   subkey_names are simply names of the subkeys of that key
   values are 3-tuples containing (name, data, data-type).
   See the documentation for _winreg.EnumValue for more details.
   """
+  keymode = _winreg.KEY_READ
+  if writeable:
+    keymode |= _winreg.KEY_SET_VALUE
   if "\\" not in top: top += "\\"
   root, subkey = top.split ("\\", 1)
-  key = _winreg.OpenKey (
-    getattr (_winreg, root),
-    subkey,
-    0,
-    _winreg.KEY_READ
-  )
+  key = _winreg.OpenKey (getattr (_winreg, root), subkey, 0, keymode)
 
   subkeys = []
   i = 0
@@ -47,20 +34,15 @@ def walk (top, topdown=True):
     except EnvironmentError:
       break
 
-  if topdown:
-    yield RegKey (top, key), subkeys, values
-
+  yield (top, key), subkeys, values
   for subkey in subkeys:
-    for result in walk (top.rstrip ("\\") + "\\" + subkey):
+    for result in walk (top.rstrip ("\\") + "\\" + subkey, writeable):
       yield result
 
-  if not topdown:
-    yield RegKey (top, key), subkeys, values
-
 if __name__ == '__main__':
-  for key, subkey_names, values in walk (r"HKEY_CURRENT_USER\Console"):
-    level = key.name.count ("\\")
-    print " " * level, key
+  for (key_name, key), subkey_names, values in walk (r"HKEY_CURRENT_USER\Console"):
+    level = key_name.count ("\\")
+    print " " * level, key_name
     for name, data, datatype in values:
       print " ", " " * level, name, "=>", data
     print

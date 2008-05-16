@@ -1,9 +1,9 @@
-.. Python on Windows documentation master file, created by sphinx-quickstart on Sun May 11 19:51:25 2008.
+.. Python on Windows master file, created by sphinx-quickstart on Sun May 11 19:51:25 2008.
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Python on Windows documentation
-================================================
+Python on Windows
+=================
 
 Using Python under Windows is straightforward and powerful, thanks
 to the hard work put in over the years by the core Python development
