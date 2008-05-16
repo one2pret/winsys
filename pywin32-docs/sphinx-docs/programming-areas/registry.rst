@@ -123,4 +123,5 @@ More Examples
 .. toctree::
    :maxdepth: 1
 
+   registry/write-the-registry
    registry/walk-the-registry
