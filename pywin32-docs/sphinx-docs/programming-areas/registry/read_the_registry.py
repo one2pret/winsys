@@ -16,10 +16,12 @@ if __name__ == '__main__':
   keypath = r"HKEY_CURRENT_USER\Software\PySoft\PyApp"
   value, datatype = read_value (keypath, "owner")
   print value
+  value, datatype = read_value (keypath, "settings")
+  print value
   value, datatype = read_value (keypath, "version")
-  print value
+  print struct.unpack ("f", value)[0]
   value, datatype = read_value (keypath, "dump")
-  print value
+  print pickle.loads (value)
   
   #
   # Read the default value

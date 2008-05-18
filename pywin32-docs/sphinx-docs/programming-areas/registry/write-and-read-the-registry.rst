@@ -1,16 +1,16 @@
 .. highlight:: python
    :linenothreshold: 5
 
-=====================
-Write to the Registry
-=====================
+===========================
+Write and read the Registry
+===========================
 
 ---------------
 The requirement
 ---------------
 
-To write keys and values into the registry, including the default value
-for a key.
+To write keys and values of various types into the registry, including the 
+default value for a key. Read them back afterwards.
 
 ------------
 Introduction
@@ -26,16 +26,18 @@ by the registry. In practice most values will be strings (REG_SZ) or integers
 (REG_DWORD). There are other possiblities, but anything else can always be
 stuffed into a Blob and registered as binary (REG_BINARY).
 
-The code below uses CreateKey to ensure the key you're requesting
+The code below for writing uses CreateKey to ensure the key you're requesting
 exists. If you're not specifying a value then that's all you get: just
 the key. If you specify a named value, this is created: an empty string
-for the name gives you a default value. The code applies simple heuristics
-to infer the registry type of the value, but you can always override it
-and sometimes you'll have to.
+for the name gives you a default value. The code assumes you want to store
+the value as a string unless you specify otherwise.
 
---------
-The code
---------
+The code for reading will fail if the keys or values requested are not
+present.
+
+-------
+Writing
+-------
 
 .. literalinclude:: write_the_registry.py
 
@@ -52,10 +54,31 @@ Notes
   it later. OpenKey allows you to specify access, but won't create the
   key if it's not there. Hence the two-handed approach.
   
-* As a best-guess, if the value is a string REG_SZ is used; if it's an
-  integer REG_DWORD is used. Otherwise, "refuse the temptation to guess".
+* A (unicode) string value is assumed to be the storage type, unless
+  it's overridden by the datatype parameter.
 
 * The only way to get a non-integer number into the registry is to
   store its representation as a binary type. The struct module's pack
   function generate the right bytes for a floating-point numnber. Or
   you can use Python's pickle to serialize arbitrary objects.
+  
+-------
+Reading
+-------
+
+.. literalinclude:: read_the_registry.py
+
+----------
+References
+----------
+
+.. seealso::
+
+   _winreg
+     The _winreg module at python.org
+   RegCreateKey
+     The RegCreateKey function at microsoft.com
+   RegOpenKey
+     The RegOpenKey function at microsoft.com
+   Registry Value Types
+     The possible registry value types at microsoft.com

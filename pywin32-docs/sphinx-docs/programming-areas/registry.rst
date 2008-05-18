@@ -17,8 +17,8 @@ registry on a remote computer.
 Access to the registry is possible under Python by a number of different
 routes. A non-exhaustive list includes: WMI, the _winreg module in the
 stdlib, the Reg... functions in the pywin32 modules, and the ctypes
-module. (You could also get fancy with various command line tools and
-the Windows Scripting Host &c.)
+module. (You could also get fancy with various command line tools,
+shell functions or the Windows Scripting Host).
 
 ---------------
 Initial Example
@@ -123,5 +123,23 @@ More Examples
 .. toctree::
    :maxdepth: 1
 
-   registry/write-the-registry
+   registry/write-and-read-the-registry
    registry/walk-the-registry
+   registry/delete-the-registry
+
+.. seealso::
+
+   `Windows Registry Functions <http://msdn.microsoft.com/en-us/library/ms724875(VS.85).aspx>`_
+     Documentation on microsoft.com for registry functions
+     
+   `WMI registry provider <http://msdn.microsoft.com/en-us/library/aa393664(VS.85).aspx>`_
+     Documentation on microsoft.com for StdRegProv WMI class
+     
+   `_winreg module <http://docs.python.org/lib/module--winreg.html>`_
+     Documentation on python.org for _winreg module
+
+   `ctypes <http://docs.python.org/lib/module-ctypes.html>`_
+     ctypes module for Python (built-in from Python 2.5+)
+   
+   `pywin32 extensions <https://sourceforge.net/projects/pywin32>`_
+     pywin32 extensions for Python on Windows

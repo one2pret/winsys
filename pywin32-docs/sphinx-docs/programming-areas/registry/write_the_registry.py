@@ -1,6 +1,6 @@
 import _winreg
 
-def write_value (keypath, value_name=None, value=None, datatype=None):
+def write_value (keypath, value_name=None, value=None, datatype=_winreg.REG_SZ):
   keymode = _winreg.KEY_READ | _winreg.KEY_SET_VALUE
   if "\\" not in keypath: keypath += "\\"
   root, subkey = keypath.split ("\\", 1)
@@ -10,14 +10,8 @@ def write_value (keypath, value_name=None, value=None, datatype=None):
     return
   
   key = _winreg.OpenKey (getattr (_winreg, root), subkey, 0, keymode)
-  if datatype is None:
-    if isinstance (value, type ("")):
-      datatype = _winreg.REG_SZ
-    elif isinstance (value, type (0)):
-      datatype = _winreg.REG_DWORD
-    else:
-      raise RuntimeError, "Can't guess datatype for %s" % value
-  
+  if datatype == _winreg.REG_SZ:
+    value = unicode (value)  
   _winreg.SetValueEx (key, value_name, 0, datatype, value)
 
 
@@ -36,12 +30,14 @@ if __name__ == '__main__':
   # Create the key if needed and write various data items
   #
   key_name = r"HKEY_CURRENT_USER\Software\PySoft\PyApp"
-  write_value (key_name, "owner", "pysoft.co.uk")
+  write_value (key_name, "owner", u"Se\u00f1or Pit\u00f3n")
+  write_value (key_name, "settings", ["abc", "def"], _winreg.REG_MULTI_SZ)
   write_value (key_name, "version", struct.pack ("f", 1.2), _winreg.REG_BINARY)
   write_value (key_name, "dump", pickle.dumps (object ()), _winreg.REG_BINARY)
 
   #
-  # Create the key and populate the default value
+  # Create the key and populate the default value, assuming
+  # conversion to string
   #
   key_name = r"HKEY_CURRENT_USER\Software\PySoft\PyTool"
-  write_value (key_name, "", "Tool for doing things with Python")
+  write_value (key_name, "", 1.1)
