@@ -5,16 +5,9 @@
 Write and read the Registry
 ===========================
 
----------------
-The requirement
----------------
+**The requirement**: To write keys and values of various types into the registry, 
+including the default value for a key. Read them back afterwards.
 
-To write keys and values of various types into the registry, including the 
-default value for a key. Read them back afterwards.
-
-------------
-Introduction
-------------
 
 The registry is organised into keys, subkeys and their values. A key
 can have one default value (one without a name), any number of named
@@ -41,26 +34,25 @@ Writing
 
 .. literalinclude:: write_the_registry.py
 
------
-Notes
------
 
-* Rather than mess with the _winreg hive constants, you specify the
-  hive (HKEY_LOCAL_MACHINE etc.) as the first part of the registry path
-  string.
+.. note::
 
-* CreateKey will in fact return a key you can use, but you can't
-  specify the access mode, so you won't be able to write back to
-  it later. OpenKey allows you to specify access, but won't create the
-  key if it's not there. Hence the two-handed approach.
-  
-* A (unicode) string value is assumed to be the storage type, unless
-  it's overridden by the datatype parameter.
+    * Rather than mess with the _winreg hive constants, you specify the
+      hive (HKEY_LOCAL_MACHINE etc.) as the first part of the registry path
+      string.
 
-* The only way to get a non-integer number into the registry is to
-  store its representation as a binary type. The struct module's pack
-  function generate the right bytes for a floating-point numnber. Or
-  you can use Python's pickle to serialize arbitrary objects.
+    * CreateKey will in fact return a key you can use, but you can't
+      specify the access mode, so you won't be able to write back to
+      it later. OpenKey allows you to specify access, but won't create the
+      key if it's not there. Hence the two-handed approach.
+      
+    * A (unicode) string value is assumed to be the storage type, unless
+      it's overridden by the datatype parameter.
+
+    * The only way to get a non-integer number into the registry is to
+      store its representation as a binary type. The struct module's pack
+      function generate the right bytes for a floating-point numnber. Or
+      you can use Python's pickle to serialize arbitrary objects.
   
 -------
 Reading

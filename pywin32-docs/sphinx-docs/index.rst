@@ -26,7 +26,7 @@ Although we have highlighted the pywin32 extensions, there are
 many other Windows-specific modules available, both within Python's
 stdlib itself and produced by third-party developers and available
 via PyPI or from individual's sites. These may in turn be based on
-the pywin32 modules or on the `comtypes <http://ctypes.sf.net>`_ 
+the pywin32 modules or on the `comtypes <http://starship.python.net/crew/theller/comtypes/>`_ 
 extension to ctypes or may be built from scratch.
 
 Contents:

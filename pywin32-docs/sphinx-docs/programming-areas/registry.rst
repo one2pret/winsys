@@ -20,18 +20,21 @@ stdlib, the Reg... functions in the pywin32 modules, and the ctypes
 module. (You could also get fancy with various command line tools,
 shell functions or the Windows Scripting Host).
 
----------------
-Initial Example
----------------
+Note that, although this section is devoted to the various underlying
+API calls available by different routes, there are already several
+registry-wrapper modules available for Python. Why reinvent the wheel
+unless you have some wholly new requirement? And even then, why not
+contribute back to an existing project? Some of the available modules
+are listed below under References.
+
+--------------
+Simple Example
+--------------
 
 This first simple example of registry access is presented using
 four different approaches to illustrate the differences between
 them. Further examples will mostly use the stdlib _winreg module
 unless the job requires something else.
-
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Read the user-specific PATH from the registry
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The user-specific environment variables (from the [Advanced] tab of
 the System Properties dialog box) are held in HKCU\\Environment which
@@ -116,9 +119,9 @@ WMI offers slightly higher level functionality, but its own plumbing
 gets in the way of a clear solution. ctypes, naturally, combines
 complete flexibility with the need to get the plumbing exactly right.
 
--------------
-More Examples
--------------
+----------------
+Further Examples
+----------------
 
 .. toctree::
    :maxdepth: 1
@@ -148,3 +151,12 @@ References
    
    `pywin32 extensions <https://sourceforge.net/projects/pywin32>`_
      pywin32 extensions for Python on Windows
+
+   `YAPRW <http://aspn.activestate.com/ASPN/Cookbook/Python/Recipe/476229>`_
+     Yet Another Python Registry Wrapper from the Python Cookbook site
+  
+   `_winreg wrapper <http://aspn.activestate.com/ASPN/Cookbook/Python/Recipe/510392>`_
+     _winreg wrapper from the Python Cookbook site
+     
+   `Registry dictionary wrapper <http://aspn.activestate.com/ASPN/Cookbook/Python/Recipe/174627>`_
+     Treat the registry like a dictionary from the Python Cookbook site

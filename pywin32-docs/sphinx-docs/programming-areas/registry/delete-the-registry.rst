@@ -5,15 +5,8 @@
 Delete from the Registry
 ========================
 
----------------
-The requirement
----------------
-
-To delete one or more keys from the registry, including all their values.
-
-------------
-Introduction
-------------
+**The requirement:** To delete one or more keys from the registry, including 
+all their values.
 
 The standard registry API, exposed in Python by the _winreg module, only allows
 keys to be deleted which have no subkeys. The Windows shell API
@@ -32,15 +25,13 @@ Deleting with _winreg
 
 .. literalinclude:: delete_the_registry_winreg.py
 
------
-Notes
------
+.. note::
 
-* DeleteKey only operates on an open key and a subkey name: you can't open
-  the key to be deleted and then pass None for the subkey.
-  
-* The key whose subkey is being deleted must have been opened with enough
-  access to delete a subkey.
+    * DeleteKey only operates on an open key and a subkey name: you can't open
+      the key to be deleted and then pass None for the subkey.
+      
+    * The key whose subkey is being deleted must have been opened with enough
+      access to delete a subkey.
 
   
 -----------------------
@@ -49,13 +40,11 @@ Deleting with Shell API
 
 .. literalinclude:: delete_the_registry_shell.py
 
------
-Notes
------
+.. note::
 
-* As we're using the unicode variant of the SHDeleteKey function the
-  string identifying the subkey to be removed must be a Python unicode
-  string.
+    * As we're using the unicode variant of the SHDeleteKey function the
+      string identifying the subkey to be removed must be a Python unicode
+      string.
 
 .. seealso::
 
