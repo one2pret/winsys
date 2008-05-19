@@ -717,6 +717,7 @@ pre {
 
 td.linenos pre {
     padding: 0;
+	margin : 13px 0 13px 0;
     border: 0;
     background-color: transparent;
     color: #aaa;
