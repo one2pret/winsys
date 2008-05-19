@@ -126,6 +126,11 @@ More Examples
    registry/write-and-read-the-registry
    registry/walk-the-registry
    registry/delete-the-registry
+   registry/save-and-restore-the-registry
+
+----------
+References
+----------
 
 .. seealso::
 

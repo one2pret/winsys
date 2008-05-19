@@ -74,11 +74,15 @@ References
 
 .. seealso::
 
-   _winreg
+   `_winreg <http://docs.python.org/lib/module--winreg.html>`_
      The _winreg module at python.org
-   RegCreateKey
+   `RegCreateKey <http://msdn.microsoft.com/en-us/library/ms724842(VS.85).aspx>`_
      The RegCreateKey function at microsoft.com
-   RegOpenKey
+   `RegOpenKey <http://msdn.microsoft.com/en-us/library/ms724895(VS.85).aspx>`_
      The RegOpenKey function at microsoft.com
-   Registry Value Types
+   `RegSetValueEx <http://msdn.microsoft.com/en-us/library/ms724923(VS.85).aspx>`_
+     The RegSetValueEx function at microsoft.com
+   `RegQueryValueEx <http://msdn.microsoft.com/en-us/library/ms724911(VS.85).aspx>`_
+     The RegQueryValueEx function at microsoft.com
+   `Registry Value Types <http://msdn.microsoft.com/en-us/library/ms724884(VS.85).aspx>`_
      The possible registry value types at microsoft.com

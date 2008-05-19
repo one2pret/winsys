@@ -46,3 +46,23 @@ Here's an example which upgrades all pysoft software from v1 to v2. It assumes
 that the earlier walk function is available in module registry_walker.py.
 
 .. literalinclude:: walk_the_registry_writer.py
+
+----------
+References
+----------
+
+.. seealso::
+
+   `_winreg <http://docs.python.org/lib/module--winreg.html>`_
+     The _winreg module at python.org
+   `RegOpenKey <http://msdn.microsoft.com/en-us/library/ms724895(VS.85).aspx>`_
+     The RegOpenKey function at microsoft.com
+   `RegEnumKey <http://msdn.microsoft.com/en-us/library/ms724861(VS.85).aspx>`_
+     The RegEnumKey function at microsoft.com
+   `RegEnumValue <http://msdn.microsoft.com/en-us/library/ms724865(VS.85).aspx>`_
+     The RegEnumValue function at microsoft.com
+   `Registry Value Types <http://msdn.microsoft.com/en-us/library/ms724884(VS.85).aspx>`_
+     The possible registry value types at microsoft.com
+   `Registry Key Access Rights <http://msdn.microsoft.com/en-us/library/ms724878(VS.85).aspx>`_
+     Registry key access and security flags at microsoft.com
+  
