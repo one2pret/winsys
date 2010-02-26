@@ -1,0 +1,197 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Using the environment module &mdash; WinSys v0.4dev documentation</title>
+    <link rel="stylesheet" href="../_static/winsys.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '0.4dev',
+        COLLAPSE_MODINDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <link rel="author" title="About these documents" href="../about.html" />
+    <link rel="top" title="WinSys v0.4dev documentation" href="../index.html" />
+    <link rel="up" title="Cookbook" href="../cookbook.html" />
+    <link rel="next" title="Using the event_logs module" href="event_logs.html" />
+    <link rel="prev" title="Using the dialogs module" href="dialogs.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../modindex.html" title="Global Module Index"
+             accesskey="M">modules</a> |</li>
+        <li class="right" >
+          <a href="event_logs.html" title="Using the event_logs module"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="dialogs.html" title="Using the dialogs module"
+             accesskey="P">previous</a> |</li>
+        <li><a href="../contents.html">WinSys v0.4dev documentation</a> &raquo;</li>
+          <li><a href="../cookbook.html" accesskey="U">Cookbook</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="using-the-environment-module">
+<h1>Using the environment module<a class="headerlink" href="#using-the-environment-module" title="Permalink to this headline">¶</a></h1>
+<p>The examples here all refer to the <a title="Pythonic access to the environment block" class="reference external" href="../environment.html#module-environment"><tt class="xref docutils literal"><span class="pre">environment</span></tt></a> module.</p>
+<div class="section" id="dump-the-current-process-environment">
+<h2>Dump the current process environment<a class="headerlink" href="#dump-the-current-process-environment" title="Permalink to this headline">¶</a></h2>
+<div class="highlight-python"><table class="highlighttable"><tr><td class="linenos"><pre>1
+2
+3</pre></td><td class="code"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">winsys</span> <span class="kn">import</span> <span class="n">environment</span>
+
+<span class="n">environment</span><span class="o">.</span><span class="n">Process</span> <span class="p">()</span><span class="o">.</span><span class="n">dump</span> <span class="p">()</span>
+</pre></div>
+</td></tr></table></div>
+</div>
+<div class="section" id="remove-all-python-installations-from-the-path">
+<h2>Remove all Python installations from the PATH<a class="headerlink" href="#remove-all-python-installations-from-the-path" title="Permalink to this headline">¶</a></h2>
+<p>Prior, say, to installing a new version Python, make sure
+that no existing Python installations remain on the PATH.
+PATH is made up of the system PATH env var plus the user
+PATH.</p>
+<div class="highlight-python"><table class="highlighttable"><tr><td class="linenos"><pre> 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17</pre></td><td class="code"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">winsys</span> <span class="kn">import</span> <span class="n">registry</span><span class="p">,</span> <span class="n">environment</span>
+
+<span class="k">def</span> <span class="nf">munge_path</span> <span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">python_paths</span><span class="p">):</span>
+  <span class="c">#env[&#39;PATH&#39;] = </span>
+  <span class="k">print</span> <span class="s">&quot;;&quot;</span><span class="o">.</span><span class="n">join</span> <span class="p">(</span>
+    <span class="n">p</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">env</span><span class="p">[</span><span class="s">&#39;PATH&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">split</span> <span class="p">(</span><span class="s">&quot;;&quot;</span><span class="p">)</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">any</span> <span class="p">(</span>
+      <span class="n">p</span><span class="o">.</span><span class="n">lower</span> <span class="p">()</span><span class="o">.</span><span class="n">startswith</span> <span class="p">(</span><span class="n">py</span><span class="p">)</span> <span class="k">for</span> <span class="n">py</span> <span class="ow">in</span> <span class="n">python_paths</span>
+    <span class="p">)</span>
+  <span class="p">)</span>
+
+<span class="n">py</span> <span class="o">=</span> <span class="n">registry</span><span class="o">.</span><span class="n">registry</span> <span class="p">(</span><span class="s">r&quot;hklm\software\python\pythoncore&quot;</span><span class="p">)</span>
+<span class="n">py_paths</span> <span class="o">=</span> <span class="n">set</span> <span class="p">(</span><span class="n">version</span><span class="o">.</span><span class="n">InstallPath</span><span class="o">.</span><span class="n">get_value</span> <span class="p">(</span><span class="s">&quot;&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">rstrip</span> <span class="p">(</span><span class="s">&quot;</span><span class="se">\\</span><span class="s">&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span> <span class="p">()</span> <span class="k">for</span> <span class="n">version</span> <span class="ow">in</span> <span class="n">py</span><span class="p">)</span>
+<span class="n">py</span> <span class="o">=</span> <span class="n">registry</span><span class="o">.</span><span class="n">registry</span> <span class="p">(</span><span class="s">r&quot;hkcu\software\python\pythoncore&quot;</span><span class="p">)</span>
+<span class="n">py_paths</span><span class="o">.</span><span class="n">update</span> <span class="p">(</span><span class="n">version</span><span class="o">.</span><span class="n">InstallPath</span><span class="o">.</span><span class="n">get_value</span> <span class="p">(</span><span class="s">&quot;&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">rstrip</span> <span class="p">(</span><span class="s">&quot;</span><span class="se">\\</span><span class="s">&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span> <span class="p">()</span> <span class="k">for</span> <span class="n">version</span> <span class="ow">in</span> <span class="n">py</span><span class="p">)</span>
+
+<span class="n">munge_path</span> <span class="p">(</span><span class="n">environment</span><span class="o">.</span><span class="n">user</span> <span class="p">(),</span> <span class="n">py_paths</span><span class="p">)</span>
+<span class="n">munge_path</span> <span class="p">(</span><span class="n">environment</span><span class="o">.</span><span class="n">system</span> <span class="p">(),</span> <span class="n">py_paths</span><span class="p">)</span>
+</pre></div>
+</td></tr></table></div>
+<p>The Python installations are listed in the registry under the
+SoftwarePython key in HKLM and HKCU. That key has one subkey for
+each version installed and the subkey holds its installation
+directory in the default value of the InstallPath key.</p>
+<p>We collect the unique list of installation directories and
+filter the user and system PATH env vars in turn by including
+only those paths which are not part of a Python installation.</p>
+<p>We have to allow for case differences between the PATH and the
+installation directories, and for the fact that some of the
+install dirs have a trailing backslash while some don&#8217;t.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">For the purposes of not endangering your PATH, the critical
+line which actually updates the PATH is commented out and
+the would-be result is shown instead.</p>
+</div>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+            <p class="logo"><a href="../contents.html">
+              <img class="logo" src="../_static/cpython2.png" alt="Logo"/>
+            </a></p>
+            <h3><a href="../contents.html">Table Of Contents</a></h3>
+            <ul>
+<li><a class="reference external" href="">Using the environment module</a><ul>
+<li><a class="reference external" href="#dump-the-current-process-environment">Dump the current process environment</a></li>
+<li><a class="reference external" href="#remove-all-python-installations-from-the-path">Remove all Python installations from the PATH</a></li>
+</ul>
+</li>
+</ul>
+
+            <h4>Previous topic</h4>
+            <p class="topless"><a href="dialogs.html"
+                                  title="previous chapter">Using the dialogs module</a></p>
+            <h4>Next topic</h4>
+            <p class="topless"><a href="event_logs.html"
+                                  title="next chapter">Using the event_logs module</a></p>
+            <h3>This Page</h3>
+            <ul class="this-page-menu">
+              <li><a href="../_sources/cookbook/environment.txt"
+                     rel="nofollow">Show Source</a></li>
+            </ul>
+          <div id="searchbox" style="display: none">
+            <h3>Quick search</h3>
+              <form class="search" action="../search.html" method="get">
+                <input type="text" name="q" size="18" />
+                <input type="submit" value="Go" />
+                <input type="hidden" name="check_keywords" value="yes" />
+                <input type="hidden" name="area" value="default" />
+              </form>
+              <p class="searchtip" style="font-size: 90%">
+              Enter search terms or a module, class or function name.
+              </p>
+          </div>
+          <script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../modindex.html" title="Global Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="event_logs.html" title="Using the event_logs module"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="dialogs.html" title="Using the dialogs module"
+             >previous</a> |</li>
+        <li><a href="../contents.html">WinSys v0.4dev documentation</a> &raquo;</li>
+          <li><a href="../cookbook.html" >Cookbook</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2009, Tim Golden.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.0.
+    </div>
+  </body>
+</html>
