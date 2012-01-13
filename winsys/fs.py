@@ -72,7 +72,6 @@ WINERROR_MAP = {
 wrapped = exc.wrapper (WINERROR_MAP, x_fs)
 
 def ignore_access_errors (exc_info):
-  print exc_info[0]
   return exc_info[0] is exc.x_access_denied
 
 PyHANDLE = pywintypes.HANDLEType
@@ -1351,6 +1350,23 @@ class File (Entry):
 
     return file (zip_filename)
 
+  def bytes (self):
+    """Return the contents of the file as a bytes object (str in 2.x)
+
+    :returns: a bytes/str object corresponding to the contents of the file
+    """
+    with open (self, "rb") as f:
+      return f.read ()
+
+  def text (self, encoding="ascii"):
+    """Return the contents of the file as a text object (unicode in 2.x)
+
+    :param encoding: valid encoding to pass to codecs.open
+    :returns: a text/unicode object corresponding to the contents of the file
+    """
+    with codecs.open (self, "r", encoding=encoding) as f:
+      return f.read ()
+
   touch = create
 
 class Dir (Entry):
@@ -1759,6 +1775,7 @@ def _files (pattern="*", ignore=[u".", u".."], error_handler=None):
       # If the error_handler chooses to swallow this error, carry on
       #
       if error_handler and error_handler (sys.exc_info ()):
+        core.warn ("Error %s ignored", sys.exc_info ()[0])
         continue
       else:
         raise
